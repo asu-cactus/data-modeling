@@ -1,6 +1,9 @@
 import pandas as pd
 import numpy as np
 
+from random import sample
+from pathlib import Path
+
 names = {
     'charge': np.int32,
     'clus': np.int32,
@@ -15,17 +18,22 @@ names = {
     'vertex': np.float64,
     'zdc': np.int32,
 }
-data = pd.read_csv('star2000.csv', header=None, names=list(names), dtype=names)
-
 
 class DataProcessor:
-    def __init__(self, data, batch_size, use_cols=None):
-        if use_cols is None:
-            self.col_names = names
-        else:
-            self.col_names = {col: names[col] for col in use_cols}
-        self.batch_size = batch_size
-        self.data = data
+    def __init__(self):
+        self.col_names = names
+        self.data = self.load_data()
+        self.data_to_list_of_dict()
+        
+    def load_data(self):
+        pathname = "data/star2000_sample.txt"
+        filepath = Path(pathname)
+        if filepath.is_file():
+            with open(filepath, 'r') as f:
+                data = [line.strip() for line in f.readlines()]
+            return data
+        data = pd.read_csv('data/star2000.csv.gz', header=None, names=list(names), dtype=names)
+        return self._process_all_rows(data)
 
     def _num2str(self, num, dtype):
         if dtype == np.int32:
@@ -40,14 +48,26 @@ class DataProcessor:
         string = ','.join(features)
         return f'{idx:07}${string}'
 
-    def process_all_rows(self, data):
-        with open('star2000.txt',  'w') as f:
-            for idx, row in self.data.iterrows():
+    def _process_all_rows(self, data):
+        lines = []
+        with open('data/star2000.txt',  'w') as f:
+            for idx, row in data.iterrows():
                 string = self._row_to_string(idx, row)
                 f.write(f'{string}\n')
+                lines.append(string)
+        return lines
 
-    def sample_data(self):
-        samples = self.data.sample(self.batch_size, axis=0)
-        results = [self._row_to_string(idx, row)
-                   for idx, row in samples.iterrows()]
-        return results
+    def sample(self, size):
+        return sample(self.data, size)
+    
+    def data_to_list_of_dict(self):
+        def line_to_dict(line, delimiter='$'):
+            instruction, output = line.split(delimiter, maxsplit=1)
+            return {'instruction': f'{instruction}{delimiter}', 'output': output}
+        self.data = [line_to_dict(line) for line in self.data]
+            
+
+if __name__ == '__main__':
+    processor = DataProcessor()
+    print(processor.sample_data(2))
+    import pdb; pdb.set_trace()

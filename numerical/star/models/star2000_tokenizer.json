@@ -1,0 +1,257 @@
+{
+  "version": "1.0",
+  "truncation": null,
+  "padding": null,
+  "added_tokens": [
+    {
+      "id": 0,
+      "content": "charge:",
+      "single_word": false,
+      "lstrip": false,
+      "rstrip": false,
+      "normalized": false,
+      "special": true
+    },
+    {
+      "id": 1,
+      "content": "clus:",
+      "single_word": false,
+      "lstrip": false,
+      "rstrip": false,
+      "normalized": false,
+      "special": true
+    },
+    {
+      "id": 2,
+      "content": "dst:",
+      "single_word": false,
+      "lstrip": false,
+      "rstrip": false,
+      "normalized": false,
+      "special": true
+    },
+    {
+      "id": 3,
+      "content": "hist:",
+      "single_word": false,
+      "lstrip": false,
+      "rstrip": false,
+      "normalized": false,
+      "special": true
+    },
+    {
+      "id": 4,
+      "content": "enumber:",
+      "single_word": false,
+      "lstrip": false,
+      "rstrip": false,
+      "normalized": false,
+      "special": true
+    },
+    {
+      "id": 5,
+      "content": "etime:",
+      "single_word": false,
+      "lstrip": false,
+      "rstrip": false,
+      "normalized": false,
+      "special": true
+    },
+    {
+      "id": 6,
+      "content": "rnumber:",
+      "single_word": false,
+      "lstrip": false,
+      "rstrip": false,
+      "normalized": false,
+      "special": true
+    },
+    {
+      "id": 7,
+      "content": "nlb:",
+      "single_word": false,
+      "lstrip": false,
+      "rstrip": false,
+      "normalized": false,
+      "special": true
+    },
+    {
+      "id": 8,
+      "content": "qxb:",
+      "single_word": false,
+      "lstrip": false,
+      "rstrip": false,
+      "normalized": false,
+      "special": true
+    },
+    {
+      "id": 9,
+      "content": "tracks:",
+      "single_word": false,
+      "lstrip": false,
+      "rstrip": false,
+      "normalized": false,
+      "special": true
+    },
+    {
+      "id": 10,
+      "content": "vertex:",
+      "single_word": false,
+      "lstrip": false,
+      "rstrip": false,
+      "normalized": false,
+      "special": true
+    },
+    {
+      "id": 11,
+      "content": "zdc:",
+      "single_word": false,
+      "lstrip": false,
+      "rstrip": false,
+      "normalized": false,
+      "special": true
+    }
+  ],
+  "normalizer": null,
+  "pre_tokenizer": null,
+  "post_processor": null,
+  "decoder": null,
+  "model": {
+    "type": "Unigram",
+    "unk_id": null,
+    "vocab": [
+      [
+        "charge:",
+        0
+      ],
+      [
+        "clus:",
+        0
+      ],
+      [
+        "dst:",
+        0
+      ],
+      [
+        "hist:",
+        0
+      ],
+      [
+        "enumber:",
+        0
+      ],
+      [
+        "etime:",
+        0
+      ],
+      [
+        "rnumber:",
+        0
+      ],
+      [
+        "nlb:",
+        0
+      ],
+      [
+        "qxb:",
+        0
+      ],
+      [
+        "tracks:",
+        0
+      ],
+      [
+        "vertex:",
+        0
+      ],
+      [
+        "zdc:",
+        0
+      ],
+      [
+        "0",
+        0
+      ],
+      [
+        "1",
+        0
+      ],
+      [
+        "2",
+        0
+      ],
+      [
+        "3",
+        0
+      ],
+      [
+        "4",
+        0
+      ],
+      [
+        "5",
+        0
+      ],
+      [
+        "6",
+        0
+      ],
+      [
+        "7",
+        0
+      ],
+      [
+        "8",
+        0
+      ],
+      [
+        "9",
+        0
+      ],
+      [
+        ",",
+        0
+      ],
+      [
+        ".",
+        0
+      ],
+      [
+        "$",
+        0
+      ],
+      [
+        "e",
+        0
+      ],
+      [
+        "+",
+        0
+      ],
+      [
+        "-",
+        0
+      ],
+      [
+        "2.0000",
+        0
+      ],
+      [
+        "e+07",
+        0
+      ],
+      [
+        "0.000000e+00",
+        0
+      ],
+      [
+        "e+01",
+        0
+      ],
+      [
+        "e-01",
+        0
+      ]
+    ]
+  }
+}
