@@ -1,2 +1,11 @@
 __pycache__/
-lightning_logs/
+cache/
+data/
+outputs/
+sentencepiece/
+
+# Vocabulary files
+*.model
+*.vocab
+
+*.out

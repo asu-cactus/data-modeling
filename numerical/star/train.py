@@ -8,13 +8,13 @@ import transformers
 from utils import DataProcessor
 import utils
 from torch.utils.data import Dataset
-from transformers import Trainer
-from transformers import PreTrainedTokenizerFast
 
 
 IGNORE_INDEX = -100
 DEFAULT_PAD_TOKEN = "[PAD]"
+DEFAULT_BOS_TOKEN = "<s>"
 DEFAULT_EOS_TOKEN = "</s>"
+
 STAR2000_SPECIAL_TOKENS = [f'{name}:' for name in utils.names]
 
 PROMPT_DICT = {
@@ -25,7 +25,7 @@ PROMPT_DICT = {
 @dataclass
 class ModelArguments:
     model_name_or_path: str = field(default="models")
-    vocab_size: int = field(default=50)
+    vocab_size: int = field(default=33)
     hidden_size: int = field(default=512)
     intermediate_size: int = field(default=1024)
     num_hidden_layers: int = field(default=4)
@@ -53,7 +53,7 @@ class TrainingArguments(transformers.TrainingArguments):
     learning_rate: float = field(default=2e-4)
     lr_scheduler_type: str = field(default="linear")
     # Batch size and epochs
-    per_device_train_batch_size: int = field(default=64)
+    per_device_train_batch_size: int = field(default=256)
     num_train_epochs: float = field(default=10000.0)
     # Logging and saving
     logging_strategy: str  = field(default="epoch")
@@ -228,7 +228,7 @@ def train():
     #     padding_side="right",
     #     use_fast=False,
     # )
-    tokenizer = PreTrainedTokenizerFast(
+    tokenizer = transformers.PreTrainedTokenizerFast(
         model_max_length=training_args.model_max_length,
         padding_side="right", 
         tokenizer_file='models/star2000_tokenizer.json'
@@ -238,8 +238,9 @@ def train():
     if tokenizer.pad_token is None:
         special_tokens_dict["pad_token"] = DEFAULT_PAD_TOKEN
     if tokenizer.eos_token is None:
+        special_tokens_dict["bos_token"] = DEFAULT_BOS_TOKEN
+    if tokenizer.eos_token is None:
         special_tokens_dict["eos_token"] = DEFAULT_EOS_TOKEN
-
 
     smart_tokenizer_and_embedding_resize(
         special_tokens_dict=special_tokens_dict,
@@ -248,7 +249,7 @@ def train():
     )
 
     data_module = make_supervised_data_module(tokenizer=tokenizer)
-    trainer = Trainer(model=model, tokenizer=tokenizer, args=training_args, **data_module)
+    trainer = transformers.Trainer(model=model, tokenizer=tokenizer, args=training_args, **data_module)
     trainer.train()
     trainer.save_state()
 

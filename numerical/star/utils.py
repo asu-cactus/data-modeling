@@ -66,7 +66,6 @@ class DataProcessor:
             return {'instruction': f'{instruction}{delimiter}', 'output': output}
         self.data = [line_to_dict(line) for line in self.data]
             
-
 if __name__ == '__main__':
     processor = DataProcessor()
     print(processor.sample_data(2))
