@@ -25,7 +25,7 @@ PROMPT_DICT = {
 @dataclass
 class ModelArguments:
     model_name_or_path: str = field(default="models")
-    vocab_size: int = field(default=33)
+    vocab_size: int = field(default=36)
     hidden_size: int = field(default=512)
     intermediate_size: int = field(default=1024)
     num_hidden_layers: int = field(default=4)
