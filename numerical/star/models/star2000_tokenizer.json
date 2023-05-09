@@ -4,7 +4,7 @@
   "padding": null,
   "added_tokens": [
     {
-      "id": 3,
+      "id": 0,
       "content": "charge:",
       "single_word": false,
       "lstrip": false,
@@ -13,7 +13,7 @@
       "special": true
     },
     {
-      "id": 4,
+      "id": 1,
       "content": "clus:",
       "single_word": false,
       "lstrip": false,
@@ -22,7 +22,7 @@
       "special": true
     },
     {
-      "id": 5,
+      "id": 2,
       "content": "dst:",
       "single_word": false,
       "lstrip": false,
@@ -31,7 +31,7 @@
       "special": true
     },
     {
-      "id": 6,
+      "id": 3,
       "content": "hist:",
       "single_word": false,
       "lstrip": false,
@@ -40,7 +40,7 @@
       "special": true
     },
     {
-      "id": 7,
+      "id": 4,
       "content": "enumber:",
       "single_word": false,
       "lstrip": false,
@@ -49,7 +49,7 @@
       "special": true
     },
     {
-      "id": 8,
+      "id": 5,
       "content": "etime:",
       "single_word": false,
       "lstrip": false,
@@ -58,7 +58,7 @@
       "special": true
     },
     {
-      "id": 9,
+      "id": 6,
       "content": "rnumber:",
       "single_word": false,
       "lstrip": false,
@@ -67,7 +67,7 @@
       "special": true
     },
     {
-      "id": 10,
+      "id": 7,
       "content": "nlb:",
       "single_word": false,
       "lstrip": false,
@@ -76,7 +76,7 @@
       "special": true
     },
     {
-      "id": 11,
+      "id": 8,
       "content": "qxb:",
       "single_word": false,
       "lstrip": false,
@@ -85,7 +85,7 @@
       "special": true
     },
     {
-      "id": 12,
+      "id": 9,
       "content": "tracks:",
       "single_word": false,
       "lstrip": false,
@@ -94,7 +94,7 @@
       "special": true
     },
     {
-      "id": 13,
+      "id": 10,
       "content": "vertex:",
       "single_word": false,
       "lstrip": false,
@@ -103,7 +103,7 @@
       "special": true
     },
     {
-      "id": 14,
+      "id": 11,
       "content": "zdc:",
       "single_word": false,
       "lstrip": false,

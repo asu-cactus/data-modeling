@@ -35,9 +35,9 @@ class ModelArguments:
     initializer_range: float = field(default=0.02)
     rms_norm_eps: float = field(default=1e-06)
     use_cache: bool = field(default=True)
-    pad_token_id: int = field(default=0)
-    bos_token_id: int = field(default=1)
-    eos_token_id: int = field(default=2)
+    pad_token_id: int = field(default=33)
+    bos_token_id: int = field(default=34)
+    eos_token_id: int = field(default=35)
     tie_word_embeddings: bool = field(default=False)
     # TODO: make sure no dropout is used (dropout=0.0)
     
