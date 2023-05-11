@@ -38,11 +38,12 @@ def predict_test():
 def predict(batch_size=256):
     prompts = [f'{i:07}$' for i in range(NROWS)]
     model, tokenizer = get_model_and_tokenizer()
+    model = model.to(device)
     predictions = []
     with open(f'data/{CHECKPOINT}.txt', 'w') as f:
         for start_idx in range(0, NROWS, batch_size):
             batch = prompts[start_idx: start_idx + batch_size]
-            inputs = tokenizer(batch, return_tensors="pt").input_ids
+            inputs = tokenizer(batch, return_tensors="pt").input_ids.to(device)
             outputs = model.generate(inputs, max_new_tokens=110, do_sample=False)
             outputs = tokenizer.batch_decode(outputs, skip_special_tokens=False)
             outputs = [text.replace(' ', '').replace(DEFAULT_EOS_TOKEN, '').replace(DEFAULT_PAD_TOKEN, '') for text in outputs]
@@ -82,3 +83,5 @@ def eval(predictions=None):
 if __name__ == '__main__':
     predictions = predict()
     eval(predictions)
+    
+    # eval()

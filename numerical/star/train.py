@@ -47,7 +47,7 @@ class ModelArguments:
 @dataclass
 class TrainingArguments(transformers.TrainingArguments):
     cache_dir: str = field(default='cache')
-    model_max_length: int = field(default=100)
+    model_max_length: int = field(default=110)
     output_dir: str = field(default='outputs')
     dataloader_num_workers: int = field(default=8)
     disable_tqdm: bool = field(default=True)
