@@ -22,6 +22,9 @@ PROMPT_DICT = {
     "prompt_no_input": "{instruction}"
 }
 
+NGPU = 2
+NROWS = 2173762
+
 @dataclass
 class ModelArguments:
     model_name_or_path: str = field(default="models")
@@ -48,10 +51,10 @@ class TrainingArguments(transformers.TrainingArguments):
     output_dir: str = field(default='outputs')
     dataloader_num_workers: int = field(default=8)
     disable_tqdm: bool = field(default=True)
-    # Optimization
-    optim: str = field(default="adamw_torch")
-    learning_rate: float = field(default=2e-4)
-    lr_scheduler_type: str = field(default="linear")
+    # # Optimization
+    # optim: str = field(default="adamw_torch")
+    # learning_rate: float = field(default=2e-4)
+    # lr_scheduler_type: str = field(default="linear")
     # Batch size and epochs
     per_device_train_batch_size: int = field(default=256)
     num_train_epochs: float = field(default=10000.0)
@@ -60,7 +63,16 @@ class TrainingArguments(transformers.TrainingArguments):
     save_strategy: str = field(default='epoch')
     save_total_limit: int = field(default=10)
 
-
+    
+def get_optimizer(model, args: TrainingArguments, lr: float = 2e-4):
+    optim = transformers.AdamW([p for p in model.parameters() if p.requires_grad], lr=lr)
+    num_training_steps = NROWS // (args.per_device_train_batch_size * 2) * NGPU
+    scheduler = transformers.get_cosine_schedule_with_warmup(
+        optim, 
+        num_warmup_steps=0, 
+        num_training_steps=num_training_steps)
+    return (optim, scheduler)
+    
 def smart_tokenizer_and_embedding_resize(
     special_tokens_dict: dict,
     tokenizer: transformers.PreTrainedTokenizer,
@@ -193,6 +205,8 @@ def make_supervised_data_module(tokenizer: transformers.PreTrainedTokenizer) -> 
 #     tokenizer.train(files, trainer)
 #     tokenizer.save(f'{save_dir}/tokenizer.json')
     
+
+    
     
 def train():
     parser = transformers.HfArgumentParser((ModelArguments, TrainingArguments))
@@ -221,13 +235,6 @@ def train():
         )
     )
 
-    # tokenizer = transformers.AutoTokenizer.from_pretrained(
-    #     model_args.model_name_or_path,
-    #     cache_dir=training_args.cache_dir,
-    #     model_max_length=training_args.model_max_length,
-    #     padding_side="right",
-    #     use_fast=False,
-    # )
     tokenizer = transformers.PreTrainedTokenizerFast(
         model_max_length=training_args.model_max_length,
         padding_side="right", 
@@ -249,7 +256,12 @@ def train():
     )
 
     data_module = make_supervised_data_module(tokenizer=tokenizer)
-    trainer = transformers.Trainer(model=model, tokenizer=tokenizer, args=training_args, **data_module)
+    trainer = transformers.Trainer(
+        model=model, 
+        tokenizer=tokenizer, 
+        args=training_args, 
+        optimizers=get_optimizer(),
+        **data_module)
     trainer.train()
     trainer.save_state()
 
