@@ -5,9 +5,9 @@ import evaluate
 from train import DEFAULT_PAD_TOKEN, DEFAULT_EOS_TOKEN
 from utils import names
 
+CHECKPOINT = "checkpoint-2"
 NROWS = 2173762
 NCOLS = 12
-CHECKPOINT = "checkpoint-1"
 device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
 
 def get_model_and_tokenizer():
@@ -52,7 +52,11 @@ def predict(batch_size=256):
     return predictions
 
 def parse_line(line):
-    return {name: line.split(f'{name}:')[1].split(',', maxsplit=1)[0] for name in names}
+    d = {}
+    for name in names:
+        segs = line.split(f'{name}:', maxsplit=1)
+        d[name] = segs[1].split(',', maxsplit=1)[0] if len(segs) > 1 else ''
+    return d
     
     
 def compute_accuracy(references, predictions):
