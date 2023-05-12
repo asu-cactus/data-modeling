@@ -1,9 +1,10 @@
 import transformers
 import torch
-import evaluate
 
 from train import DEFAULT_PAD_TOKEN, DEFAULT_EOS_TOKEN
 from utils import names
+
+from collections import defaultdict
 
 CHECKPOINT = "checkpoint-2"
 NROWS = 2173762
@@ -60,32 +61,38 @@ def parse_line(line):
     
     
 def compute_accuracy(references, predictions):
-    n_correct =0
+    n_correct = defaultdict(int)
     for ref, pred in zip(references, predictions):
         ref = parse_line(ref)
         pred = parse_line(pred)
         for name in names:
-            n_correct += (ref[name] == pred[name])
-    return n_correct / (NROWS * NCOLS)
+            n_correct[name] += (ref[name] == pred[name])
+    accuracy = {name: n / NROWS for name, n in n_correct.items()}
+    accuracy['all'] = sum(list(accuracy.values())) / NCOLS
+    return accuracy
+
+
     
 def eval(predictions=None):
     if predictions is None:
         predictions= load_lines(f'data/{CHECKPOINT}.txt')
+        # predictions= load_lines(f'data/checkpoint-1.txt')
     references = load_lines(f'data/star2000.txt')
     assert len(predictions) == len(references)
     
-    # Eval using bleu
-    model, tokenizer = get_model_and_tokenizer()
-    bleu = evaluate.load("bleu")
-    print(bleu.compute(predictions=predictions, references=references, tokenizer=tokenizer.tokenize))
+    # # Eval using bleu
+    # import evaluate
+    # model, tokenizer = get_model_and_tokenizer()
+    # bleu = evaluate.load("bleu")
+    # print(bleu.compute(predictions=predictions, references=references, tokenizer=tokenizer.tokenize))
     
     # Eval using accuracy
     accuracy = compute_accuracy(references, predictions)
-    print(f'Accuracy: {accuracy}')
+    print(f'Accuracy:\n{accuracy}')
     
     
 if __name__ == '__main__':
-    predictions = predict()
-    eval(predictions)
+    # predictions = predict()
+    # eval(predictions)
     
-    # eval()
+    eval()

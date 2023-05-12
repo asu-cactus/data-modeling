@@ -1,11 +1,6 @@
 __pycache__/
-cache/
 data/
 outputs/
-sentencepiece/
 
-# Vocabulary files
-*.model
-*.vocab
-
+# output files
 *.out
