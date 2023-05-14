@@ -57,7 +57,7 @@ class TrainingArguments(transformers.TrainingArguments):
     # lr_scheduler_type: str = field(default="linear")
     # Batch size and epochs
     per_device_train_batch_size: int = field(default=256)
-    num_train_epochs: float = field(default=20000.0)
+    num_train_epochs: float = field(default=10000.0)
     # Logging and saving
     logging_strategy: str  = field(default="epoch")
     save_strategy: str = field(default='epoch')

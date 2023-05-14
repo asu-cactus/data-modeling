@@ -6,9 +6,8 @@ from utils import names
 
 from collections import defaultdict
 
-CHECKPOINT = "checkpoint-2"
+CHECKPOINT = "checkpoint-365156"
 NROWS = 2173762
-NCOLS = 12
 device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
 
 
@@ -84,7 +83,7 @@ def compute_accuracy(references, predictions):
             n_correct[name] += (ref[name] == pred[name])
     print(f'Incomplete prediction counts:\n{missings}')
     accuracy = {name: n / NROWS for name, n in n_correct.items()}
-    accuracy['all'] = sum(list(accuracy.values())) / NCOLS
+    accuracy['all'] = sum(list(accuracy.values())) / len(accuracy)
     return accuracy
 
 
@@ -107,7 +106,7 @@ def eval(predictions=None):
 
 
 if __name__ == '__main__':
-    # predictions = predict()
-    # eval(predictions)
+    predictions = predict()
+    eval(predictions)
 
-    eval()
+    # eval()
