@@ -4,24 +4,42 @@ import numpy as np
 from random import sample
 from pathlib import Path
 
+# names = {
+#     'charge': np.int32,
+#     'clus': np.int32,
+#     'dst': np.int32,
+#     'hist': np.int32,
+#     'enumber': np.int32,
+#     'etime': np.float64,
+#     'rnumber': np.int32,
+#     'nlb': np.int32,
+#     'qxb': np.float64,
+#     'tracks': np.int32,
+#     'vertex': np.float64,
+#     'zdc': np.int32,
+# }
+
 names = {
     'charge': np.int32,
     'clus': np.int32,
-    'dst': np.int32,
-    'hist': np.int32,
-    'enumber': np.int32,
-    'etime': np.float64,
-    'rnumber': np.int32,
     'nlb': np.int32,
     'qxb': np.float64,
     'tracks': np.int32,
+    'vertex': np.float64,   
+    'zdc': np.int32,
+}
+col_names = {
+    'charge': np.int32,
+    'clus': np.int32,
+    'nlb': np.int32,
+    'tracks': np.int32,
     'vertex': np.float64,
+    'qxb': np.float64, 
     'zdc': np.int32,
 }
 
 class DataProcessor:
     def __init__(self):
-        self.col_names = names
         self.data = self.load_data()
         self.data_to_list_of_dict()
         
@@ -32,7 +50,12 @@ class DataProcessor:
             with open(filepath, 'r') as f:
                 data = [line.strip() for line in f.readlines()]
             return data
-        data = pd.read_csv('data/star2000.csv.gz', header=None, names=list(names), dtype=names)
+        data = pd.read_csv(
+            'data/star2000.csv.gz', 
+            header=None, 
+            usecols=[0,1,7,8,9,10,11],
+            names=list(names), 
+            dtype=names)
         return self._process_all_rows(data)
 
     def _num2str(self, num, dtype):
@@ -44,7 +67,7 @@ class DataProcessor:
 
     def _row_to_string(self, idx, row):
         features = [
-            f"{col}:{self._num2str(row[col], dtype)}" for col, dtype in self.col_names.items()]
+            f"{col}:{self._num2str(row[col], dtype)}" for col, dtype in col_names.items()]
         string = ','.join(features)
         return f'{idx:07}${string}'
 

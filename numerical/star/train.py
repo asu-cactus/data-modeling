@@ -2,6 +2,8 @@ import copy
 import logging
 from dataclasses import dataclass, field
 from typing import Sequence
+import os
+os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
 import torch
 import transformers
@@ -12,7 +14,7 @@ from torch.utils.data import Dataset
 
 IGNORE_INDEX = -100
 DEFAULT_PAD_TOKEN = "[PAD]"
-DEFAULT_BOS_TOKEN = "<s>"
+# DEFAULT_BOS_TOKEN = "<s>"
 DEFAULT_EOS_TOKEN = "</s>"
 
 STAR2000_SPECIAL_TOKENS = [f'{name}:' for name in utils.names]
@@ -28,10 +30,10 @@ NROWS = 2173762
 @dataclass
 class ModelArguments:
     model_name_or_path: str = field(default="models")
-    vocab_size: int = field(default=36)
+    vocab_size: int = field(default=35)
     hidden_size: int = field(default=512)
-    intermediate_size: int = field(default=1024)
-    num_hidden_layers: int = field(default=4)
+    intermediate_size: int = field(default=512) # was 1024
+    num_hidden_layers: int = field(default=6) # was 4
     num_attention_heads: int = field(default=4)
     hidden_act: str = field(default='silu')
     max_position_embeddings: int = field(default=256)
@@ -39,10 +41,8 @@ class ModelArguments:
     rms_norm_eps: float = field(default=1e-06)
     use_cache: bool = field(default=True)
     pad_token_id: int = field(default=33)
-    bos_token_id: int = field(default=34)
-    eos_token_id: int = field(default=35)
+    eos_token_id: int = field(default=34)
     tie_word_embeddings: bool = field(default=False)
-    # TODO: make sure no dropout is used (dropout=0.0)
     
 @dataclass
 class TrainingArguments(transformers.TrainingArguments):
@@ -229,7 +229,7 @@ def train():
             rms_norm_eps=model_args.rms_norm_eps,
             use_cache=model_args.use_cache,
             pad_token_id=model_args.pad_token_id,
-            bos_token_id=model_args.bos_token_id,
+            # bos_token_id=model_args.bos_token_id,
             eos_token_id=model_args.eos_token_id,
             tie_word_embeddings=model_args.tie_word_embeddings,
         )
@@ -244,8 +244,8 @@ def train():
     special_tokens_dict = dict()
     if tokenizer.pad_token is None:
         special_tokens_dict["pad_token"] = DEFAULT_PAD_TOKEN
-    if tokenizer.eos_token is None:
-        special_tokens_dict["bos_token"] = DEFAULT_BOS_TOKEN
+    # if tokenizer.eos_token is None:
+    #     special_tokens_dict["bos_token"] = DEFAULT_BOS_TOKEN
     if tokenizer.eos_token is None:
         special_tokens_dict["eos_token"] = DEFAULT_EOS_TOKEN
 

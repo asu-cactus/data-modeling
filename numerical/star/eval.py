@@ -6,7 +6,7 @@ from utils import names
 
 from collections import defaultdict
 
-CHECKPOINT = "checkpoint-365156"
+CHECKPOINT = "checkpoint-"
 NROWS = 2173762
 device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
 
@@ -100,7 +100,7 @@ def eval(predictions=None):
     # print(bleu.compute(predictions=predictions, references=references, tokenizer=tokenizer.tokenize))
 
     # Eval using accuracy
-    accuracy = compute_accuracy(references, predictions)
+    accuracy = dict(compute_accuracy(references, predictions))
     print(f'Accuracy:\n{accuracy}')
     return accuracy
 
