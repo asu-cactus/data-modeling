@@ -16,6 +16,7 @@ IGNORE_INDEX = -100
 DEFAULT_PAD_TOKEN = "[PAD]"
 # DEFAULT_BOS_TOKEN = "<s>"
 DEFAULT_EOS_TOKEN = "</s>"
+MAX_LENGTH = 150
 
 STAR2000_SPECIAL_TOKENS = [f'{name}:' for name in utils.names]
 
@@ -47,7 +48,7 @@ class ModelArguments:
 @dataclass
 class TrainingArguments(transformers.TrainingArguments):
     cache_dir: str = field(default='cache')
-    model_max_length: int = field(default=110)
+    model_max_length: int = field(default=MAX_LENGTH)
     output_dir: str = field(default='outputs')
     dataloader_num_workers: int = field(default=8)
     disable_tqdm: bool = field(default=True)
@@ -66,7 +67,7 @@ class TrainingArguments(transformers.TrainingArguments):
     
 def get_optimizer(model, args: TrainingArguments, lr: float = 2e-4):
     optim = transformers.AdamW([p for p in model.parameters() if p.requires_grad], lr=lr)
-    num_training_steps = NROWS // (args.per_device_train_batch_size * 2) * NGPU
+    num_training_steps = NROWS // (args.per_device_train_batch_size * 2) * NGPU * args.num_train_epochs
     scheduler = transformers.get_cosine_schedule_with_warmup(
         optim, 
         num_warmup_steps=0, 

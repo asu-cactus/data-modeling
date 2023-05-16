@@ -28,13 +28,29 @@ names = {
     'vertex': np.float64,   
     'zdc': np.int32,
 }
+
+patterns = {
+    'charge': '{:03d}',
+    'clus': '{:04d}',
+    'dst': '{:06d}',
+    'hist': '{:06d}',
+    'enumber': '{:05d}',
+    'etime': '{:e}',
+    'rnumber': '{:07d}',
+    'nlb': '{:04d}',
+    'qxb': '{:e}',
+    'tracks': '{:04d}',
+    'vertex': '{:e}',
+    'zdc': '{:03d}',
+}
+
 col_names = {
     'charge': np.int32,
     'clus': np.int32,
     'nlb': np.int32,
+    'qxb': np.float64, 
     'tracks': np.int32,
     'vertex': np.float64,
-    'qxb': np.float64, 
     'zdc': np.int32,
 }
 
@@ -58,16 +74,16 @@ class DataProcessor:
             dtype=names)
         return self._process_all_rows(data)
 
-    def _num2str(self, num, dtype):
+    def _num2str(self, num, dtype, pattern):
         if dtype == np.int32:
-            return f'{int(num):d}'
+            return pattern.format(int(num))
         if dtype == np.float64:
-            return f'{num:e}'
+            return pattern.format(num)
         raise ValueError(f'No dtype as {dtype}')
 
     def _row_to_string(self, idx, row):
         features = [
-            f"{col}:{self._num2str(row[col], dtype)}" for col, dtype in col_names.items()]
+            f"{name}:{self._num2str(row[name], dtype, patterns[name])}" for name, dtype in col_names.items()]
         string = ','.join(features)
         return f'{idx:07}${string}'
 

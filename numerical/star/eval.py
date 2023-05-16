@@ -1,12 +1,12 @@
 import transformers
 import torch
 
-from train import DEFAULT_PAD_TOKEN, DEFAULT_EOS_TOKEN
+from train import DEFAULT_PAD_TOKEN, DEFAULT_EOS_TOKEN, MAX_LENGTH
 from utils import names
 
 from collections import defaultdict
 
-CHECKPOINT = "checkpoint-"
+CHECKPOINT = "checkpoint-50952"
 NROWS = 2173762
 device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
 
@@ -32,7 +32,7 @@ def predict_test():
     model, tokenizer = get_model_and_tokenizer()
 
     inputs = tokenizer(prompts, return_tensors="pt").input_ids
-    outputs = model.generate(inputs, max_new_tokens=110, do_sample=False)
+    outputs = model.generate(inputs, max_new_tokens=MAX_LENGTH, do_sample=False)
     predictions = tokenizer.batch_decode(outputs, skip_special_tokens=False)
     for pred in predictions:
         print(pred)
@@ -48,7 +48,7 @@ def predict(batch_size=256):
             batch = prompts[start_idx: start_idx + batch_size]
             inputs = tokenizer(batch, return_tensors="pt").input_ids.to(device)
             outputs = model.generate(
-                inputs, max_new_tokens=110, do_sample=False)
+                inputs, max_new_tokens=MAX_LENGTH, do_sample=False)
             outputs = tokenizer.batch_decode(
                 outputs, skip_special_tokens=False)
             outputs = [text.replace(' ', '').replace(DEFAULT_EOS_TOKEN, '').replace(
