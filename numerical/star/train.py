@@ -33,18 +33,18 @@ PROMPT_DICT = {
 @dataclass
 class ModelArguments:
     model_name_or_path: str = field(default="models")
-    vocab_size: int = field(default=35)
-    hidden_size: int = field(default=256)
-    intermediate_size: int = field(default=512)  # was 1024
-    num_hidden_layers: int = field(default=4)  # was 4
-    num_attention_heads: int = field(default=4)
+    vocab_size: int = field(default=30)
+    hidden_size: int = field(default=20)  # was 512
+    intermediate_size: int = field(default=128)  # was 1024
+    num_hidden_layers: int = field(default=6)  # was 4
+    num_attention_heads: int = field(default=2)  # was 4
     hidden_act: str = field(default="silu")
     max_position_embeddings: int = field(default=MAX_LENGTH)
     initializer_range: float = field(default=0.02)
     rms_norm_eps: float = field(default=1e-06)
     use_cache: bool = field(default=True)
-    pad_token_id: int = field(default=33)
-    eos_token_id: int = field(default=34)
+    pad_token_id: int = field(default=28)
+    eos_token_id: int = field(default=29)
     tie_word_embeddings: bool = field(default=False)
 
 
@@ -53,7 +53,7 @@ class TrainingArguments(transformers.TrainingArguments):
     cache_dir: str = field(default="cache")
     model_max_length: int = field(default=MAX_LENGTH)
     output_dir: str = field(default="outputs")
-    dataloader_num_workers: int = field(default=8)
+    dataloader_num_workers: int = field(default=16)
     disable_tqdm: bool = field(default=True)
     # # Optimization
     # optim: str = field(default="adamw_torch")

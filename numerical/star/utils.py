@@ -2,7 +2,6 @@ import pandas as pd
 import numpy as np
 
 from random import sample
-from pathlib import Path
 
 # patterns = {
 #     "charge": "{:03d}",
@@ -49,12 +48,6 @@ class DataProcessor:
         self.data_to_list_of_dict()
 
     def load_data(self):
-        pathname = "data/star2000_sample.txt"
-        filepath = Path(pathname)
-        if filepath.is_file():
-            with open(filepath, "r") as f:
-                data = [line.strip() for line in f.readlines()]
-            return data
         data = pd.read_csv(
             "data/star2000.csv.gz",
             header=None,
@@ -62,7 +55,13 @@ class DataProcessor:
             names=list(names),
             dtype=names,
         )
-        return self._process_all_rows(data)
+        lines = []
+        with open("data/star2000.txt", "w") as f:
+            for idx, row in data.iterrows():
+                string = self._row_to_string(idx, row)
+                f.write(f"{string}\n")
+                lines.append(string)
+        return lines
 
     # def _num2str(self, num, dtype, pattern):
     #     if dtype == np.int32:
@@ -92,15 +91,6 @@ class DataProcessor:
         ]
         string = ",".join(features)
         return f"{idx:07}${string}"
-
-    def _process_all_rows(self, data):
-        lines = []
-        with open("data/star2000.txt", "w") as f:
-            for idx, row in data.iterrows():
-                string = self._row_to_string(idx, row)
-                f.write(f"{string}\n")
-                lines.append(string)
-        return lines
 
     def data_to_list_of_dict(self):
         def line_to_dict(line, delimiter="$"):
