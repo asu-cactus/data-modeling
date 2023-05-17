@@ -33,8 +33,8 @@ PROMPT_DICT = {
 @dataclass
 class ModelArguments:
     model_name_or_path: str = field(default="models")
-    vocab_size: int = field(default=30)
-    hidden_size: int = field(default=20)  # was 512
+    vocab_size: int = field(default=24)
+    hidden_size: int = field(default=64)  # was 512
     intermediate_size: int = field(default=128)  # was 1024
     num_hidden_layers: int = field(default=6)  # was 4
     num_attention_heads: int = field(default=2)  # was 4
@@ -43,8 +43,8 @@ class ModelArguments:
     initializer_range: float = field(default=0.02)
     rms_norm_eps: float = field(default=1e-06)
     use_cache: bool = field(default=True)
-    pad_token_id: int = field(default=28)
-    eos_token_id: int = field(default=29)
+    pad_token_id: int = field(default=22)
+    eos_token_id: int = field(default=23)
     tie_word_embeddings: bool = field(default=False)
 
 

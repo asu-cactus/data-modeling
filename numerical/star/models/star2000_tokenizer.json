@@ -5,24 +5,6 @@
   "added_tokens": [
     {
       "id": 0,
-      "content": "charge:",
-      "single_word": false,
-      "lstrip": false,
-      "rstrip": false,
-      "normalized": false,
-      "special": true
-    },
-    {
-      "id": 1,
-      "content": "clus:",
-      "single_word": false,
-      "lstrip": false,
-      "rstrip": false,
-      "normalized": false,
-      "special": true
-    },
-    {
-      "id": 2,
       "content": "dst:",
       "single_word": false,
       "lstrip": false,
@@ -31,7 +13,7 @@
       "special": true
     },
     {
-      "id": 3,
+      "id": 1,
       "content": "hist:",
       "single_word": false,
       "lstrip": false,
@@ -40,7 +22,7 @@
       "special": true
     },
     {
-      "id": 4,
+      "id": 2,
       "content": "enumber:",
       "single_word": false,
       "lstrip": false,
@@ -49,7 +31,7 @@
       "special": true
     },
     {
-      "id": 5,
+      "id": 3,
       "content": "etime:",
       "single_word": false,
       "lstrip": false,
@@ -58,53 +40,8 @@
       "special": true
     },
     {
-      "id": 6,
+      "id": 4,
       "content": "rnumber:",
-      "single_word": false,
-      "lstrip": false,
-      "rstrip": false,
-      "normalized": false,
-      "special": true
-    },
-    {
-      "id": 7,
-      "content": "nlb:",
-      "single_word": false,
-      "lstrip": false,
-      "rstrip": false,
-      "normalized": false,
-      "special": true
-    },
-    {
-      "id": 8,
-      "content": "qxb:",
-      "single_word": false,
-      "lstrip": false,
-      "rstrip": false,
-      "normalized": false,
-      "special": true
-    },
-    {
-      "id": 9,
-      "content": "tracks:",
-      "single_word": false,
-      "lstrip": false,
-      "rstrip": false,
-      "normalized": false,
-      "special": true
-    },
-    {
-      "id": 10,
-      "content": "vertex:",
-      "single_word": false,
-      "lstrip": false,
-      "rstrip": false,
-      "normalized": false,
-      "special": true
-    },
-    {
-      "id": 11,
-      "content": "zdc:",
       "single_word": false,
       "lstrip": false,
       "rstrip": false,
@@ -120,14 +57,6 @@
     "type": "Unigram",
     "unk_id": null,
     "vocab": [
-      [
-        "charge:",
-        0
-      ],
-      [
-        "clus:",
-        0
-      ],
       [
         "dst:",
         0
@@ -150,22 +79,6 @@
       ],
       [
         "nlb:",
-        0
-      ],
-      [
-        "qxb:",
-        0
-      ],
-      [
-        "tracks:",
-        0
-      ],
-      [
-        "vertex:",
-        0
-      ],
-      [
-        "zdc:",
         0
       ],
       [

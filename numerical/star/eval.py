@@ -10,7 +10,7 @@ import os
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 
-CHECKPOINT = "checkpoint-25476"
+CHECKPOINT = "checkpoint-543488"
 NROWS = 2173762
 device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
 
