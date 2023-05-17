@@ -240,10 +240,6 @@ def train():
     parser = transformers.HfArgumentParser((ModelArguments, TrainingArguments))
     model_args, training_args = parser.parse_args_into_dataclasses()
 
-    # model = transformers.AutoModelForCausalLM.from_pretrained(
-    #     model_args.model_name_or_path,
-    #     cache_dir=training_args.cache_dir,
-    # )
     model = transformers.AutoModelForCausalLM.from_config(
         transformers.LlamaConfig(
             vocab_size=model_args.vocab_size,
@@ -286,6 +282,23 @@ def train():
     utils.estimate_model_size(model)
 
     data_module = make_supervised_data_module(tokenizer=tokenizer)
+    trainer = transformers.Trainer(
+        model=model,
+        tokenizer=tokenizer,
+        args=training_args,
+        optimizers=get_optimizer(model, training_args),
+        **data_module,
+    )
+    trainer.train()
+    trainer.save_state()
+
+
+def continue_train(checkpoint: str):
+    tokenizer = transformers.AutoTokenizer.from_pretrained(f"outputs/{checkpoint}/")
+    model = transformers.AutoModelForCausalLM.from_pretrained(f"outputs/{checkpoint}/")
+    data_module = make_supervised_data_module(tokenizer=tokenizer)
+    parser = transformers.HfArgumentParser((ModelArguments, TrainingArguments))
+    _, training_args = parser.parse_args_into_dataclasses()
     trainer = transformers.Trainer(
         model=model,
         tokenizer=tokenizer,
