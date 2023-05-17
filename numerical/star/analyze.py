@@ -2,6 +2,8 @@ from eval import load_lines
 from utils import names
 
 from collections import defaultdict
+import os
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 
 def parse_pred_line(line: str):
     d = {}
@@ -55,4 +57,4 @@ def get_overlap(cpt1: str, cpt2: str):
               checkpoint2 corrects: {len(d2[name])}
               overlap: {len(overlap)}""")
         
-get_overlap('checkpoint-33968', 'checkpoint-46706')
+get_overlap('checkpoint-46706', 'checkpoint-50952')

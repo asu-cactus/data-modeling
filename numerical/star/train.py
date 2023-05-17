@@ -3,7 +3,9 @@ import logging
 from dataclasses import dataclass, field
 from typing import Sequence
 import os
+
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 
 import torch
 import transformers
@@ -16,40 +18,41 @@ IGNORE_INDEX = -100
 DEFAULT_PAD_TOKEN = "[PAD]"
 # DEFAULT_BOS_TOKEN = "<s>"
 DEFAULT_EOS_TOKEN = "</s>"
-MAX_LENGTH = 150
+MAX_LENGTH = 50
+NGPU = 2
+NROWS = 2173762
 
-STAR2000_SPECIAL_TOKENS = [f'{name}:' for name in utils.names]
+STAR2000_SPECIAL_TOKENS = [f"{name}:" for name in utils.names]
 
 PROMPT_DICT = {
     "prompt_input": "{intruction}{input}",
-    "prompt_no_input": "{instruction}"
+    "prompt_no_input": "{instruction}",
 }
 
-NGPU = 2
-NROWS = 2173762
 
 @dataclass
 class ModelArguments:
     model_name_or_path: str = field(default="models")
     vocab_size: int = field(default=35)
-    hidden_size: int = field(default=512)
-    intermediate_size: int = field(default=512) # was 1024
-    num_hidden_layers: int = field(default=6) # was 4
+    hidden_size: int = field(default=256)
+    intermediate_size: int = field(default=512)  # was 1024
+    num_hidden_layers: int = field(default=4)  # was 4
     num_attention_heads: int = field(default=4)
-    hidden_act: str = field(default='silu')
-    max_position_embeddings: int = field(default=256)
+    hidden_act: str = field(default="silu")
+    max_position_embeddings: int = field(default=MAX_LENGTH)
     initializer_range: float = field(default=0.02)
     rms_norm_eps: float = field(default=1e-06)
     use_cache: bool = field(default=True)
     pad_token_id: int = field(default=33)
     eos_token_id: int = field(default=34)
     tie_word_embeddings: bool = field(default=False)
-    
+
+
 @dataclass
 class TrainingArguments(transformers.TrainingArguments):
-    cache_dir: str = field(default='cache')
+    cache_dir: str = field(default="cache")
     model_max_length: int = field(default=MAX_LENGTH)
-    output_dir: str = field(default='outputs')
+    output_dir: str = field(default="outputs")
     dataloader_num_workers: int = field(default=8)
     disable_tqdm: bool = field(default=True)
     # # Optimization
@@ -60,20 +63,24 @@ class TrainingArguments(transformers.TrainingArguments):
     per_device_train_batch_size: int = field(default=256)
     num_train_epochs: float = field(default=10000.0)
     # Logging and saving
-    logging_strategy: str  = field(default="epoch")
-    save_strategy: str = field(default='epoch')
+    logging_strategy: str = field(default="epoch")
+    save_strategy: str = field(default="epoch")
     save_total_limit: int = field(default=10)
 
-    
+
 def get_optimizer(model, args: TrainingArguments, lr: float = 2e-4):
-    optim = transformers.AdamW([p for p in model.parameters() if p.requires_grad], lr=lr)
-    num_training_steps = NROWS // (args.per_device_train_batch_size * 2) * NGPU * args.num_train_epochs
+    optim = transformers.AdamW(
+        [p for p in model.parameters() if p.requires_grad], lr=lr
+    )
+    num_training_steps = (
+        NROWS // (args.per_device_train_batch_size * 2) * NGPU * args.num_train_epochs
+    )
     scheduler = transformers.get_cosine_schedule_with_warmup(
-        optim, 
-        num_warmup_steps=0, 
-        num_training_steps=num_training_steps)
+        optim, num_warmup_steps=0, num_training_steps=num_training_steps
+    )
     return (optim, scheduler)
-    
+
+
 def smart_tokenizer_and_embedding_resize(
     special_tokens_dict: dict,
     tokenizer: transformers.PreTrainedTokenizer,
@@ -90,14 +97,20 @@ def smart_tokenizer_and_embedding_resize(
         input_embeddings = model.get_input_embeddings().weight.data
         output_embeddings = model.get_output_embeddings().weight.data
 
-        input_embeddings_avg = input_embeddings[:-num_new_tokens].mean(dim=0, keepdim=True)
-        output_embeddings_avg = output_embeddings[:-num_new_tokens].mean(dim=0, keepdim=True)
+        input_embeddings_avg = input_embeddings[:-num_new_tokens].mean(
+            dim=0, keepdim=True
+        )
+        output_embeddings_avg = output_embeddings[:-num_new_tokens].mean(
+            dim=0, keepdim=True
+        )
 
         input_embeddings[-num_new_tokens:] = input_embeddings_avg
         output_embeddings[-num_new_tokens:] = output_embeddings_avg
 
 
-def _tokenize_fn(strings: Sequence[str], tokenizer: transformers.PreTrainedTokenizer) -> dict:
+def _tokenize_fn(
+    strings: Sequence[str], tokenizer: transformers.PreTrainedTokenizer
+) -> dict:
     """Tokenize a list of strings."""
     tokenized_list = [
         tokenizer(
@@ -111,7 +124,8 @@ def _tokenize_fn(strings: Sequence[str], tokenizer: transformers.PreTrainedToken
     ]
     input_ids = labels = [tokenized.input_ids[0] for tokenized in tokenized_list]
     input_ids_lens = labels_lens = [
-        tokenized.input_ids.ne(tokenizer.pad_token_id).sum().item() for tokenized in tokenized_list
+        tokenized.input_ids.ne(tokenizer.pad_token_id).sum().item()
+        for tokenized in tokenized_list
     ]
     return dict(
         input_ids=input_ids,
@@ -128,7 +142,9 @@ def preprocess(
 ) -> dict:
     """Preprocess the data by tokenizing."""
     examples = [s + t for s, t in zip(sources, targets)]
-    examples_tokenized, sources_tokenized = [_tokenize_fn(strings, tokenizer) for strings in (examples, sources)]
+    examples_tokenized, sources_tokenized = [
+        _tokenize_fn(strings, tokenizer) for strings in (examples, sources)
+    ]
     input_ids = examples_tokenized["input_ids"]
     labels = copy.deepcopy(input_ids)
     for label, source_len in zip(labels, sources_tokenized["input_ids_lens"]):
@@ -146,12 +162,19 @@ class SupervisedDataset(Dataset):
         list_data_dict = DataProcessor().data
 
         logging.warning("Formatting inputs...")
-        prompt_input, prompt_no_input = PROMPT_DICT["prompt_input"], PROMPT_DICT["prompt_no_input"]
+        prompt_input, prompt_no_input = (
+            PROMPT_DICT["prompt_input"],
+            PROMPT_DICT["prompt_no_input"],
+        )
         sources = [
-            prompt_input.format_map(example) if example.get("input", "") != "" else prompt_no_input.format_map(example)
+            prompt_input.format_map(example)
+            if example.get("input", "") != ""
+            else prompt_no_input.format_map(example)
             for example in list_data_dict
         ]
-        targets = [f"{example['output']}{tokenizer.eos_token}" for example in list_data_dict]
+        targets = [
+            f"{example['output']}{tokenizer.eos_token}" for example in list_data_dict
+        ]
 
         logging.warning("Tokenizing inputs... This may take some time...")
         data_dict = preprocess(sources, targets, tokenizer)
@@ -173,11 +196,15 @@ class DataCollatorForSupervisedDataset(object):
     tokenizer: transformers.PreTrainedTokenizer
 
     def __call__(self, instances: Sequence[dict]) -> dict[str, torch.Tensor]:
-        input_ids, labels = tuple([instance[key] for instance in instances] for key in ("input_ids", "labels"))
+        input_ids, labels = tuple(
+            [instance[key] for instance in instances] for key in ("input_ids", "labels")
+        )
         input_ids = torch.nn.utils.rnn.pad_sequence(
             input_ids, batch_first=True, padding_value=self.tokenizer.pad_token_id
         )
-        labels = torch.nn.utils.rnn.pad_sequence(labels, batch_first=True, padding_value=IGNORE_INDEX)
+        labels = torch.nn.utils.rnn.pad_sequence(
+            labels, batch_first=True, padding_value=IGNORE_INDEX
+        )
         return dict(
             input_ids=input_ids,
             labels=labels,
@@ -189,7 +216,9 @@ def make_supervised_data_module(tokenizer: transformers.PreTrainedTokenizer) -> 
     """Make dataset and collator for supervised fine-tuning."""
     train_dataset = SupervisedDataset(tokenizer=tokenizer)
     data_collator = DataCollatorForSupervisedDataset(tokenizer=tokenizer)
-    return dict(train_dataset=train_dataset, eval_dataset=None, data_collator=data_collator)
+    return dict(
+        train_dataset=train_dataset, eval_dataset=None, data_collator=data_collator
+    )
 
 
 # def train_tokenizer(
@@ -205,10 +234,8 @@ def make_supervised_data_module(tokenizer: transformers.PreTrainedTokenizer) -> 
 #     files = ['data/star2000.txt']
 #     tokenizer.train(files, trainer)
 #     tokenizer.save(f'{save_dir}/tokenizer.json')
-    
 
-    
-    
+
 def train():
     parser = transformers.HfArgumentParser((ModelArguments, TrainingArguments))
     model_args, training_args = parser.parse_args_into_dataclasses()
@@ -238,10 +265,10 @@ def train():
 
     tokenizer = transformers.PreTrainedTokenizerFast(
         model_max_length=training_args.model_max_length,
-        padding_side="right", 
-        tokenizer_file='models/star2000_tokenizer.json'
+        padding_side="right",
+        tokenizer_file="models/star2000_tokenizer.json",
     )
-    
+
     special_tokens_dict = dict()
     if tokenizer.pad_token is None:
         special_tokens_dict["pad_token"] = DEFAULT_PAD_TOKEN
@@ -256,13 +283,16 @@ def train():
         model=model,
     )
 
+    utils.estimate_model_size(model)
+
     data_module = make_supervised_data_module(tokenizer=tokenizer)
     trainer = transformers.Trainer(
-        model=model, 
-        tokenizer=tokenizer, 
-        args=training_args, 
+        model=model,
+        tokenizer=tokenizer,
+        args=training_args,
         optimizers=get_optimizer(model, training_args),
-        **data_module)
+        **data_module,
+    )
     trainer.train()
     trainer.save_state()
 
