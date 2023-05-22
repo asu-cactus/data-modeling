@@ -11,27 +11,29 @@ import logging
 
 logging.basicConfig(level=logging.INFO)
 
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
 
 
 def get_model(out_units, checkpoint=None):
     model = nn.Sequential(
-        nn.Linear(1, 100),
+        nn.Linear(1, 1000),
         nn.ReLU(),
-        nn.Linear(100, 100),
+        nn.Linear(1000, 1000),
         nn.ReLU(),
-        nn.Linear(100, out_units),
+        nn.Linear(1000, 1000),
+        nn.ReLU(),
+        nn.Linear(1000, out_units),
     )
     if checkpoint is not None:
         model.load_state_dict(torch.load(f"outputs/{checkpoint}"))
     return model
 
 
-def load_data(name, dtype):
+def load_data(usecols, name, dtype):
     data = pd.read_csv(
         "data/star2000.csv.gz",
         header=None,
-        usecols=[0],
+        usecols=[usecols],
         names=[name],
         dtype=dtype,
     )
@@ -47,11 +49,11 @@ def to_categorical(data, name):
     return len(unique_values)
 
 
-def create_training_loader(data, batch_size=256):
+def create_training_loader(data, name, batch_size=256):
     # Create a TensorDataset from our data
     dataset = torch.utils.data.TensorDataset(
         torch.arange(len(data), dtype=torch.float32).unsqueeze(1),
-        torch.tensor(data["charge"].values, dtype=torch.long),
+        torch.tensor(data[name].values, dtype=torch.long),
     )
     # Create a DataLoader from the dataset
     loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
@@ -115,15 +117,17 @@ def train(model, optimizer, scheduler, loss_fn, metric, epochs=10000):
         torch.save(model.state_dict(), model_path)
 
 
-name = "charge"
-dtype = np.int32
-data = load_data(name, dtype)
-num_cate = to_categorical(data, name)
-training_loader = create_training_loader(data)
+if __name__ == "__main__":
+    usecols = 1
+    name = "clus"
+    dtype = np.int32
+    data = load_data(usecols, name, dtype)
+    num_cate = to_categorical(data, name)
+    training_loader = create_training_loader(data, name)
 
-model = get_model(num_cate, checkpoint="model_20230522_000724_227")
-loss_fn = torch.nn.CrossEntropyLoss()
-optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3)
-scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, "min")
-metric = MulticlassAccuracy(num_classes=num_cate)
-train(model, optimizer, scheduler, loss_fn, metric)
+    model = get_model(num_cate)
+    loss_fn = torch.nn.CrossEntropyLoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, "min")
+    metric = MulticlassAccuracy(num_classes=num_cate)
+    train(model, optimizer, scheduler, loss_fn, metric)
