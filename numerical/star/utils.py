@@ -36,7 +36,7 @@ from random import sample
 names = {
     "dst": np.int32,
     "hist": np.int32,
-    "enumber": np.int32,
+    # "enumber": np.int32,
     "etime": np.float64,
     "rnumber": np.int32,
 }
@@ -51,7 +51,7 @@ class DataProcessor:
         data = pd.read_csv(
             "data/star2000.csv.gz",
             header=None,
-            usecols=[2, 3, 4, 5, 6],
+            usecols=[2, 3, 5, 6],
             names=list(names),
             dtype=names,
         )

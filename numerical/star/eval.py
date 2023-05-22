@@ -10,9 +10,9 @@ import os
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 
-CHECKPOINT = "checkpoint-751542"
+CHECKPOINT = "checkpoint-1583758"
 NROWS = 2173762
-device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
 def get_model_and_tokenizer():
@@ -42,7 +42,7 @@ def predict_test():
         print(pred)
 
 
-def predict(batch_size=512):
+def predict(batch_size=256):
     prompts = [f"{i:07}$" for i in range(NROWS)]
     model, tokenizer = get_model_and_tokenizer()
     model = model.to(device)
