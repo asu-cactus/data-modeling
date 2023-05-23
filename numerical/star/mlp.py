@@ -11,10 +11,10 @@ import logging
 
 logging.basicConfig(level=logging.INFO)
 
-device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
-def get_model(out_units, checkpoint=None):
+def get_classification_model(out_units, checkpoint=None):
     model = nn.Sequential(
         nn.Linear(1, 1000),
         nn.ReLU(),
@@ -23,6 +23,21 @@ def get_model(out_units, checkpoint=None):
         nn.Linear(1000, 1000),
         nn.ReLU(),
         nn.Linear(1000, out_units),
+    )
+    if checkpoint is not None:
+        model.load_state_dict(torch.load(f"outputs/{checkpoint}"))
+    return model
+
+
+def get_regression_model(checkpoint=None):
+    model = nn.Sequential(
+        nn.Linear(1, 1000),
+        nn.ReLU(),
+        nn.Linear(1000, 1000),
+        nn.ReLU(),
+        nn.Linear(1000, 1000),
+        nn.ReLU(),
+        nn.Linear(1000, 1),
     )
     if checkpoint is not None:
         model.load_state_dict(torch.load(f"outputs/{checkpoint}"))
@@ -65,20 +80,24 @@ def train_one_epoch(
 ):
     running_loss = 0.0
     last_loss = 0.0
-
+    is_regression = isinstance(loss_fn, torch.nn.MSELoss)
     for _, data in enumerate(training_loader):
         inputs, labels = data
         inputs, labels = inputs.to(device), labels.to(device)
+        if is_regression:
+            labels = labels.float()
         optimizer.zero_grad()
-        outputs = model(inputs)
+        outputs = model(inputs).squeeze()
         loss = loss_fn(outputs, labels)
         loss.backward()
         optimizer.step()
         running_loss += loss.item()
         # Calculate accuracy
-        metric.update(
-            torch.argmax(outputs, dim=1).detach().cpu(), labels.detach().cpu()
-        )
+        if is_regression:
+            prediction = torch.round(outputs).detach().cpu()
+        else:
+            prediction = torch.argmax(outputs, dim=1).detach().cpu()
+        metric.update(prediction, labels.cpu().long())
 
     acc = metric.compute().item()
     metric.reset()
@@ -118,16 +137,22 @@ def train(model, optimizer, scheduler, loss_fn, metric, epochs=10000):
 
 
 if __name__ == "__main__":
-    usecols = 1
-    name = "clus"
+    is_regression = False
+    usecols = 2
+    name = "dst"
     dtype = np.int32
     data = load_data(usecols, name, dtype)
-    num_cate = to_categorical(data, name)
+    if not is_regression:
+        num_cate = to_categorical(data, name)
     training_loader = create_training_loader(data, name)
 
-    model = get_model(num_cate)
-    loss_fn = torch.nn.CrossEntropyLoss()
+    if is_regression:
+        model = get_regression_model()
+        loss_fn = torch.nn.MSELoss()
+    else:
+        model = get_classification_model(num_cate)
+        loss_fn = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, "min")
-    metric = MulticlassAccuracy(num_classes=num_cate)
+    metric = MulticlassAccuracy()
     train(model, optimizer, scheduler, loss_fn, metric)
