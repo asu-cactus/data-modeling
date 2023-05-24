@@ -9,16 +9,15 @@ os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 
 import torch
 import transformers
-from utils import DataProcessor
 import utils
-from torch.utils.data import Dataset
-
+from torch.utils.data import Dataset, DataLoader
+from opacus import PrivacyEngine
 
 IGNORE_INDEX = -100
 DEFAULT_PAD_TOKEN = "[PAD]"
 # DEFAULT_BOS_TOKEN = "<s>"
 DEFAULT_EOS_TOKEN = "</s>"
-MAX_LENGTH = 45
+MAX_LENGTH = 50
 NGPU = 2
 NROWS = 2173762
 
@@ -34,9 +33,9 @@ PROMPT_DICT = {
 class ModelArguments:
     model_name_or_path: str = field(default="models")
     vocab_size: int = field(default=24)
-    hidden_size: int = field(default=64)  # was 512
-    intermediate_size: int = field(default=128)  # was 1024
-    num_hidden_layers: int = field(default=6)  # was 4
+    hidden_size: int = field(default=128)  # was 512
+    intermediate_size: int = field(default=256)  # was 1024
+    num_hidden_layers: int = field(default=4)  # was 4
     num_attention_heads: int = field(default=2)  # was 4
     hidden_act: str = field(default="silu")
     max_position_embeddings: int = field(default=MAX_LENGTH)
@@ -159,7 +158,7 @@ class SupervisedDataset(Dataset):
         super(SupervisedDataset, self).__init__()
         logging.warning("Loading data...")
         # list_data_dict = utils.jload(data_path)
-        list_data_dict = DataProcessor().data
+        list_data_dict = utils.DataProcessor().data
 
         logging.warning("Formatting inputs...")
         prompt_input, prompt_no_input = (
@@ -236,7 +235,16 @@ def make_supervised_data_module(tokenizer: transformers.PreTrainedTokenizer) -> 
 #     tokenizer.save(f'{save_dir}/tokenizer.json')
 
 
-def train():
+class DPSGDTrainer(transformers.Trainer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.train_dataloader = kwargs["train_dataloader"]
+
+    def get_train_data_loader(self):
+        return self.train_dataloader
+
+
+def train(is_dpsgd: bool = False):
     parser = transformers.HfArgumentParser((ModelArguments, TrainingArguments))
     model_args, training_args = parser.parse_args_into_dataclasses()
 
@@ -282,18 +290,47 @@ def train():
     utils.estimate_model_size(model)
 
     data_module = make_supervised_data_module(tokenizer=tokenizer)
-    trainer = transformers.Trainer(
-        model=model,
-        tokenizer=tokenizer,
-        args=training_args,
-        optimizers=get_optimizer(model, training_args),
-        **data_module,
-    )
+
+    if is_dpsgd:
+        privacy_engine = PrivacyEngine()
+        optimizer, scheduler = get_optimizer(model, training_args)
+        data_loader = DataLoader(
+            data_module["train_dataset"],
+            collate_fn=data_module["data_collator"],
+            batch_size=training_args.per_device_train_batch_size,
+            num_workers=training_args.dataloader_num_workers,
+            shuffle=True,
+        )
+        model, optimizer, data_loader = privacy_engine.make_private(
+            module=model,
+            optimizer=optimizer,
+            data_loader=data_loader,
+            noise_multiplier=1.1,
+            max_grad_norm=1.0,
+        )
+        trainer = DPSGDTrainer(
+            model=model,
+            tokenizer=tokenizer,
+            args=training_args,
+            optimizers=(optimizer, scheduler),
+            train_dataloader=data_loader,
+            **data_module,
+        )
+        # TODO: add callback to save privacy engine state
+    else:
+        trainer = transformers.Trainer(
+            model=model,
+            tokenizer=tokenizer,
+            args=training_args,
+            optimizers=get_optimizer(model, training_args),
+            **data_module,
+        )
     trainer.train()
     trainer.save_state()
 
 
 def continue_train(checkpoint: str):
+    # TODO: Support dpsgd
     tokenizer = transformers.AutoTokenizer.from_pretrained(f"outputs/{checkpoint}/")
     model = transformers.AutoModelForCausalLM.from_pretrained(f"outputs/{checkpoint}/")
     data_module = make_supervised_data_module(tokenizer=tokenizer)
@@ -311,4 +348,4 @@ def continue_train(checkpoint: str):
 
 
 if __name__ == "__main__":
-    train()
+    train(is_dpsgd=True)
