@@ -82,7 +82,8 @@ class DataProcessor:
         if dtype == np.int32:
             return f"{int(num):d}"
         if dtype == np.float64:
-            return f"{num:e}"
+            return int(float(num))
+            # return f"{num:e}"
         raise ValueError(f"No dtype as {dtype}")
 
     def _row_to_string(self, idx, row):

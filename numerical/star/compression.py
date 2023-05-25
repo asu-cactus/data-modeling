@@ -3,11 +3,17 @@ import sys
 import pandas as pd
 import numpy as np
 
-from utils import names
+names = {
+    "dst": np.int32,
+    "hist": np.int32,
+    "enumber": np.int32,
+    "etime": np.float64,
+    "rnumber": np.int32,
+}
 
 
 def compress_df(df, save=False):
-    compressed = zstd.compress(df.to_records(index=True).tobytes())
+    compressed = zstd.compress(df.to_records(index=False).tobytes())
     size_in_mb = sys.getsizeof(compressed) / 1024**2
     print(f"Compressed size: {size_in_mb:.2f}MB")
     if save:
@@ -31,21 +37,25 @@ def missing_one_attr_experiment():
         size_in_mb = sys.getsizeof(df) / 1024**2
         print(f"Before compression size: {size_in_mb:.2f}MB")
         comp_size_in_mb = compress_df(df)
-        print(f"Compression ratio: {comp_size_in_mb / size_in_mb:.3f}\n")
+        print(f"Compression ratio: {size_in_mb / comp_size_in_mb:.3f}\n")
 
 
 def test_compression():
     df = pd.read_csv(
         "data/star2000.csv.gz",
         header=None,
-        usecols=[2, 3, 4, 5],
+        usecols=[2, 3, 4, 5, 6],
         names=list(names),
         dtype=names,
     )
+
+    df = df.astype(np.int32)
+    df["index"] = df.index
+
     size_in_mb = sys.getsizeof(df) / 1024**2
     print(f"Before compression size: {size_in_mb:.2f}MB")
     comp_size_in_mb = compress_df(df)
-    print(f"Compression ratio: {comp_size_in_mb / size_in_mb:.3f}\n")
+    print(f"Compression ratio: {size_in_mb / comp_size_in_mb:.3f}\n")
 
 
 if __name__ == "__main__":
