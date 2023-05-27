@@ -10,8 +10,8 @@ os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 import torch
 import transformers
 import utils
-from torch.utils.data import Dataset, DataLoader
-from opacus import PrivacyEngine
+from torch.utils.data import Dataset
+
 
 IGNORE_INDEX = -100
 DEFAULT_PAD_TOKEN = "[PAD]"
@@ -32,7 +32,7 @@ PROMPT_DICT = {
 @dataclass
 class ModelArguments:
     model_name_or_path: str = field(default="models")
-    vocab_size: int = field(default=24)
+    vocab_size: int = field(default=21)
     hidden_size: int = field(default=128)  # was 512
     intermediate_size: int = field(default=256)  # was 1024
     num_hidden_layers: int = field(default=4)  # was 4
@@ -42,8 +42,8 @@ class ModelArguments:
     initializer_range: float = field(default=0.02)
     rms_norm_eps: float = field(default=1e-06)
     use_cache: bool = field(default=True)
-    pad_token_id: int = field(default=22)
-    eos_token_id: int = field(default=23)
+    pad_token_id: int = field(default=19)
+    eos_token_id: int = field(default=20)
     tie_word_embeddings: bool = field(default=False)
 
 
@@ -235,16 +235,7 @@ def make_supervised_data_module(tokenizer: transformers.PreTrainedTokenizer) -> 
 #     tokenizer.save(f'{save_dir}/tokenizer.json')
 
 
-class DPSGDTrainer(transformers.Trainer):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.train_dataloader = kwargs["train_dataloader"]
-
-    def get_train_data_loader(self):
-        return self.train_dataloader
-
-
-def train(is_dpsgd: bool = False):
+def train():
     parser = transformers.HfArgumentParser((ModelArguments, TrainingArguments))
     model_args, training_args = parser.parse_args_into_dataclasses()
 
@@ -291,40 +282,13 @@ def train(is_dpsgd: bool = False):
 
     data_module = make_supervised_data_module(tokenizer=tokenizer)
 
-    if is_dpsgd:
-        privacy_engine = PrivacyEngine()
-        optimizer, scheduler = get_optimizer(model, training_args)
-        data_loader = DataLoader(
-            data_module["train_dataset"],
-            collate_fn=data_module["data_collator"],
-            batch_size=training_args.per_device_train_batch_size,
-            num_workers=training_args.dataloader_num_workers,
-            shuffle=True,
-        )
-        model, optimizer, data_loader = privacy_engine.make_private(
-            module=model,
-            optimizer=optimizer,
-            data_loader=data_loader,
-            noise_multiplier=1.1,
-            max_grad_norm=1.0,
-        )
-        trainer = DPSGDTrainer(
-            model=model,
-            tokenizer=tokenizer,
-            args=training_args,
-            optimizers=(optimizer, scheduler),
-            train_dataloader=data_loader,
-            **data_module,
-        )
-        # TODO: add callback to save privacy engine state
-    else:
-        trainer = transformers.Trainer(
-            model=model,
-            tokenizer=tokenizer,
-            args=training_args,
-            optimizers=get_optimizer(model, training_args),
-            **data_module,
-        )
+    trainer = transformers.Trainer(
+        model=model,
+        tokenizer=tokenizer,
+        args=training_args,
+        optimizers=get_optimizer(model, training_args),
+        **data_module,
+    )
     trainer.train()
     trainer.save_state()
 
@@ -348,4 +312,4 @@ def continue_train(checkpoint: str):
 
 
 if __name__ == "__main__":
-    train(is_dpsgd=True)
+    train()
