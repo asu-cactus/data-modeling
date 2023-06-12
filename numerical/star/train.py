@@ -1,5 +1,6 @@
 import copy
 import logging
+import math
 from dataclasses import dataclass, field
 from typing import Sequence
 import os
@@ -20,8 +21,6 @@ DEFAULT_EOS_TOKEN = "</s>"
 MAX_LENGTH = 50
 NGPU = 2
 NROWS = 2173762
-
-STAR2000_SPECIAL_TOKENS = [f"{name}:" for name in utils.names]
 
 PROMPT_DICT = {
     "prompt_input": "{intruction}{input}",
@@ -60,7 +59,7 @@ class TrainingArguments(transformers.TrainingArguments):
     # lr_scheduler_type: str = field(default="linear")
     # Batch size and epochs
     per_device_train_batch_size: int = field(default=256)
-    num_train_epochs: float = field(default=10000.0)
+    num_train_epochs: float = field(default=4000.0)
     # Logging and saving
     logging_strategy: str = field(default="epoch")
     save_strategy: str = field(default="epoch")
@@ -72,7 +71,9 @@ def get_optimizer(model, args: TrainingArguments, lr: float = 2e-4):
         [p for p in model.parameters() if p.requires_grad], lr=lr
     )
     num_training_steps = (
-        NROWS // (args.per_device_train_batch_size * 2) * NGPU * args.num_train_epochs
+        math.ceil(NROWS // (args.per_device_train_batch_size * 2))
+        * NGPU
+        * args.num_train_epochs
     )
     scheduler = transformers.get_cosine_schedule_with_warmup(
         optim, num_warmup_steps=0, num_training_steps=num_training_steps
@@ -224,6 +225,7 @@ def make_supervised_data_module(tokenizer: transformers.PreTrainedTokenizer) -> 
 #     model_args: ModelArguments,
 # ):
 #     # TODO: bypass tokenizer training if it is already done
+#     STAR2000_SPECIAL_TOKENS = [f"{name}:" for name in utils.names]
 #     save_dir = model_args.model_name_or_path
 #     tokenizer = Tokenizer(Unigram())
 #     trainer = UnigramTrainer(

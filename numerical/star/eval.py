@@ -1,8 +1,9 @@
 import transformers
 import torch
+import pandas as pd
 
 from train import DEFAULT_PAD_TOKEN, DEFAULT_EOS_TOKEN, MAX_LENGTH
-from utils import names
+from utils import names, USECOLS
 
 from collections import defaultdict
 import os
@@ -10,9 +11,9 @@ import os
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 
-CHECKPOINT = "checkpoint-5417896"
+CHECKPOINT = "checkpoint-24019622"
 NROWS = 2173762
-device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
 def get_model_and_tokenizer():
@@ -67,38 +68,47 @@ def predict(batch_size=256):
     return predictions
 
 
-def parse_pred_line(line: str, missings, print_missing=False):
+def parse_pred_line(line: str):
     d = {}
-    is_missing = False
     for name in names:
         segs = line.split(f"{name}:", maxsplit=1)
         d[name] = segs[1].split(",", maxsplit=1)[0] if len(segs) > 1 else ""
-        if len(segs) <= 1:
-            missings[name] += 1
-            is_missing = True
-    if print_missing and is_missing:
-        print(line)
     return d
 
 
 def compute_accuracy(references, predictions):
     n_correct = defaultdict(int)
-    missings = defaultdict(int)
     for ref, pred in zip(references, predictions):
         ref = {
             name: ref.split(f"{name}:", maxsplit=1)[1].split(",", maxsplit=1)[0]
             for name in names
         }
-        pred = parse_pred_line(pred, missings, print_missing=True)
+        pred = parse_pred_line(pred)
         for name in names:
             n_correct[name] += ref[name] == pred[name]
-    print(f"Incomplete prediction counts:\n{missings}")
     accuracy = {name: n / NROWS for name, n in n_correct.items()}
     accuracy["all"] = sum(list(accuracy.values())) / len(accuracy)
     return accuracy
 
+def compute_error_mean(references: pd.DataFrame, predictions: list[str]):
+    # Compute the mean of each column in references, and use it as the default value
+    avgs = references.mean(axis=0)
 
-def eval(predictions=None):
+    # Compute the average error for each column
+    error_sum = defaultdict(float)
+    for ref, pred in zip(references.values, predictions):
+        pred = parse_pred_line(pred)
+        for i, name in enumerate(names):
+            try:
+                pred_int = int(pred[name])
+            except ValueError:
+                pred_int = avgs[name]
+            error_sum[name] += abs(ref[i] - pred_int)
+    error_mean = {name: n / NROWS for name, n in error_sum.items()}
+    error_mean["all"] = sum(list(error_mean.values())) / len(error_mean)
+    return error_mean
+
+def eval_accuracy(predictions=None):
     if predictions is None:
         predictions = load_lines(f"data/{CHECKPOINT}.txt")
     references = load_lines(f"data/star2000.txt")
@@ -111,13 +121,34 @@ def eval(predictions=None):
     # print(bleu.compute(predictions=predictions, references=references, tokenizer=tokenizer.tokenize))
 
     # Eval using accuracy
-    accuracy = dict(compute_accuracy(references, predictions))
+    accuracy = compute_accuracy(references, predictions)
     print(f"Accuracy:\n{accuracy}")
     return accuracy
 
+def eval_avg_error(predictions=None):
+    if predictions is None:
+        predictions = load_lines(f"data/{CHECKPOINT}.txt")
+    references = pd.read_csv(
+        "data/star2000.csv.gz",
+        header=None,
+        usecols=USECOLS,
+        names=list(names),
+        dtype=names,
+    )
+    # Hardcoded: convert all to integer!
+    references = references.astype(int)
+    assert len(predictions) == len(references)
+
+    # Eval using avg error
+    error_mean = compute_error_mean(references, predictions)
+    print(f"Average absolute error:\n{error_mean}")
+    return error_mean
+
 
 if __name__ == "__main__":
-    predictions = predict()
-    eval(predictions)
+    # predictions = predict()
+    # eval_avg_error(predictions)
+    # eval_accuracy(predictions)
 
-    # eval()
+    eval_accuracy()
+    # eval_avg_error()

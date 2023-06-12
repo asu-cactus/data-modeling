@@ -33,6 +33,7 @@ from random import sample
 #     'zdc': np.int32,
 # }
 
+USECOLS = [2, 3, 4, 5, 6]
 names = {
     "dst": np.int32,
     "hist": np.int32,
@@ -51,7 +52,7 @@ class DataProcessor:
         data = pd.read_csv(
             "data/star2000.csv.gz",
             header=None,
-            usecols=[2, 3, 4, 5, 6],
+            usecols=USECOLS,
             names=list(names),
             dtype=names,
         )
