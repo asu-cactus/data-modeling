@@ -107,14 +107,23 @@ def train(args, model, optimizer, train_dataloader, test_dataloader):
             eval_loss, eval_accuracy = evaluate(args, model, test_dataloader)
 
             print(
-            f"Epoch: {epoch} | "
-            f"Step: {step} | "
-            f"Train loss: {train_loss:.3f} | "
-            f"Eval loss: {eval_loss:.3f} | "
-            f"Eval accuracy: {eval_accuracy:.3f} | "
-            f"ɛ: {eps:.2f}"
+                f"Epoch: {epoch} | "
+                # f"Step: {step} | "
+                f"Train loss: {train_loss:.3f} | "
+                f"Eval loss: {eval_loss:.3f} | "
+                f"Eval accuracy: {eval_accuracy:.3f} | "
+                f"ɛ: {eps:.2f}"
             )
-       
+            
+    # Final evaluation
+    _, eval_accuracy = evaluate(args, model, test_dataloader)
+    eps = privacy_engine.get_epsilon(args.delta)
+    print(
+        f"Final evaluation | "
+        f"Eval accuracy: {eval_accuracy:.3f} | "
+        f"ɛ: {eps:.2f}"
+    )
+    
 def get_model():
     model_name = "bert-base-cased"
     config = BertConfig.from_pretrained(
@@ -147,6 +156,10 @@ def main():
         description="Opacus IMDB trained by Transformers",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
+    # Dataset file management arguments
+    parser.add_argument(
+        "--data_root", type=str, default="./data", help="Where IMDB is/will be stored"
+    )
     # Training arguments
     parser.add_argument(
         "-b",
@@ -160,7 +173,7 @@ def main():
         "-n",
         "--epochs",
         type=int,
-        default=2,
+        default=10,
         metavar="N",
         help="number of epochs to train",
     )
@@ -192,7 +205,7 @@ def main():
         type=float,
         default=7.5,
         metavar="D",
-        help="Target epsilon (default: 7.5)",
+        help="Target privacy budget",
     )
     parser.add_argument(
         "--delta",
@@ -232,9 +245,6 @@ def main():
     #     default=False,
     #     help="Enable Secure RNG to have trustworthy privacy guarantees. Comes at a performance cost",
     # )
-    parser.add_argument(
-        "--data_root", type=str, default="./dataset", help="Where IMDB is/will be stored"
-    )
     parser.add_argument(
         "-j",
         "--workers",
