@@ -11,9 +11,9 @@ import os
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 
-CHECKPOINT = "checkpoint-24019622"
+CHECKPOINT = "checkpoint-1388442"
 NROWS = 2173762
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
 
 
 def get_model_and_tokenizer():
@@ -90,6 +90,7 @@ def compute_accuracy(references, predictions):
     accuracy["all"] = sum(list(accuracy.values())) / len(accuracy)
     return accuracy
 
+
 def compute_error_mean(references: pd.DataFrame, predictions: list[str]):
     # Compute the mean of each column in references, and use it as the default value
     avgs = references.mean(axis=0)
@@ -108,6 +109,7 @@ def compute_error_mean(references: pd.DataFrame, predictions: list[str]):
     error_mean["all"] = sum(list(error_mean.values())) / len(error_mean)
     return error_mean
 
+
 def eval_accuracy(predictions=None):
     if predictions is None:
         predictions = load_lines(f"data/{CHECKPOINT}.txt")
@@ -124,6 +126,7 @@ def eval_accuracy(predictions=None):
     accuracy = compute_accuracy(references, predictions)
     print(f"Accuracy:\n{accuracy}")
     return accuracy
+
 
 def eval_avg_error(predictions=None):
     if predictions is None:
@@ -146,9 +149,9 @@ def eval_avg_error(predictions=None):
 
 
 if __name__ == "__main__":
-    # predictions = predict()
-    # eval_avg_error(predictions)
-    # eval_accuracy(predictions)
+    predictions = predict()
+    eval_avg_error(predictions)
+    eval_accuracy(predictions)
 
-    eval_accuracy()
+    # eval_accuracy()
     # eval_avg_error()

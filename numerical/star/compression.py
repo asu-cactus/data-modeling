@@ -7,31 +7,27 @@ from third_party.pysz import (
     SZ,
 )  # remember to include "third_party" folder in LD_LIBRARY_PATH
 
-names = {
-    "dst": np.int32,
-    "hist": np.int32,
-    "enumber": np.int32,
-    "etime": np.float64,
-    "rnumber": np.int32,
-}
-
 
 def abs_error(array1, array2):
     abs_error = np.mean(np.abs(array1 - array2), axis=0)
-    print(abs_error)
+    # print(abs_error)
     return abs_error.mean()
 
 
-def zstd_compress(df, original_size, save=False):
-    compressed = zstd.compress(df.to_records(index=False).tobytes())
-    size_in_mb = sys.getsizeof(compressed) / 1024**2
-    print(
-        f"Compressed size: {size_in_mb:.2f}MB, compression ratio: {original_size / size_in_mb:.3f}"
-    )
-    if save:
-        with open(f"data/star2000.zstd", "wb") as f:
-            f.write(compressed)
-    return size_in_mb
+def get_size_in_mb(object):
+    return sys.getsizeof(object) / 1024**2
+
+
+def zstd_compress(df):
+    for col_name in df.columns:
+        column = df[[col_name]].to_records(index=False).tobytes()
+        original_size = get_size_in_mb(column)
+        compressed = zstd.compress(column)
+        compress_size = get_size_in_mb(compressed)
+        print(
+            f"Column {col_name}: compressed size: {compress_size:.2f}MB, "
+            f"compression ratio: {original_size / compress_size:.3f}"
+        )
 
 
 def zfpy_compress(df, original_size, mode):
@@ -91,7 +87,7 @@ def zfpy_compress(df, original_size, mode):
             abs_error(ndarray, zfpy.decompress_numpy(compressed))
 
 
-def sz_compress(df, original_size, mode):
+def sz_compress(df, mode):
     # mode_convert = {
     #     "ABS": 0,
     #     "REL": 1,
@@ -103,46 +99,50 @@ def sz_compress(df, original_size, mode):
     # }
 
     df = df.astype(np.float32)
-    ndarray = df.to_numpy()
+    # ndarray = df.to_numpy()
     sz = SZ("third_party/libSZ3c.so")
-    if mode == "ABS":
-        result = {"eb_abs": [], "compression_ratio": [], "log_abs_error": []}
-        eb_abs = 1e-2
-        for _ in range(6):
-            compressed, _ = sz.compress(ndarray, 0, eb_abs, 0, 0)
-            size_in_mb = sys.getsizeof(compressed) / 1024**2
-            compr_ratio = original_size / size_in_mb
-            print(
-                f"ABS mode compressed size: {size_in_mb:.2f}MB, compression ratio: {compr_ratio:.3f}"
-            )
-            avg_abs_error = abs_error(
-                ndarray, sz.decompress(compressed, ndarray.shape, ndarray.dtype)
-            )
-            result["eb_abs"].append(eb_abs)
-            result["compression_ratio"].append(compr_ratio)
-            result["log_abs_error"].append(np.log(avg_abs_error))
-            eb_abs *= 0.1
-        pd.DataFrame.from_dict(result).to_csv("outputs/abs.csv", index=False)
 
-    elif mode == "REL":  # Doesn't change
-        result = {"eb_rel": [], "compression_ratio": [], "log_abs_error": []}
-        for eb_rel in [1e-6, 1e-7, 1e-8, 1e-9, 1e-10, 1e-11]:
-            compressed, _ = sz.compress(ndarray, 1, 0, eb_rel, 0)
-            size_in_mb = sys.getsizeof(compressed) / 1024**2
-            compr_ratio = original_size / size_in_mb
-            print(
-                f"REL mode compressed size: {size_in_mb:.2f}MB, compression ratio: {compr_ratio:.3f}"
-            )
+    if mode == "REL":  # Doesn't change
+        # result = {"eb_rel": [], "compression_ratio": [], "log_abs_error": []}
+        # for eb_rel in [1e-6, 1e-7, 1e-8, 1e-9, 1e-10, 1e-11]:
+        #     compressed, _ = sz.compress(ndarray, 1, 0, eb_rel, 0)
+        #     size_in_mb = sys.getsizeof(compressed) / 1024**2
+        #     compr_ratio = original_size / size_in_mb
+        #     print(
+        #         f"REL mode compressed size: {size_in_mb:.2f}MB, compression ratio: {compr_ratio:.3f}"
+        #     )
+        #     avg_abs_error = abs_error(
+        #         ndarray, sz.decompress(compressed, ndarray.shape, ndarray.dtype)
+        #     )
+        #     result["eb_rel"].append(eb_rel)
+        #     result["compression_ratio"].append(compr_ratio)
+        #     result["log_abs_error"].append(np.log(avg_abs_error))
+        # pd.DataFrame.from_dict(result).to_csv("outputs/rel.csv", index=False)
+
+        for col_name in df.columns:
+            column = df[col_name].to_numpy()
+            original_size = get_size_in_mb(df[col_name])
+            compressed, _ = sz.compress(column, 1, 0, 1e-4, 0)
+            compress_size = get_size_in_mb(compressed)
             avg_abs_error = abs_error(
-                ndarray, sz.decompress(compressed, ndarray.shape, ndarray.dtype)
+                column, sz.decompress(compressed, column.shape, column.dtype)
             )
-            result["eb_rel"].append(eb_rel)
-            result["compression_ratio"].append(compr_ratio)
-            result["log_abs_error"].append(np.log(avg_abs_error))
-        pd.DataFrame.from_dict(result).to_csv("outputs/rel.csv", index=False)
+            print(
+                f"Column {col_name}: compressed size: {compress_size:.2f}MB, "
+                f"compression ratio: {original_size / compress_size:.3f}, "
+                f"error: {avg_abs_error:.3f}"
+            )
 
 
 def test_compression():
+    names = {
+        "dst": np.int32,
+        "hist": np.int32,
+        "enumber": np.int32,
+        "etime": np.float64,
+        "rnumber": np.int32,
+    }
+
     df = pd.read_csv(
         "data/star2000.csv.gz",
         header=None,
@@ -158,10 +158,10 @@ def test_compression():
     # Measure size of original data frame and compressed data frame
     size_in_mb = sys.getsizeof(df) / 1024**2
     print(f"Before compression size: {size_in_mb:.2f}MB")
-    # zstd_compress(df, original_size=size_in_mb)
-    # zfpy_compress(df, original_size=size_in_mb, mode="fixed_rate")
+    # zstd_compress(df)
+    # zfpy_compress(df, mode="fixed_rate")
 
-    sz_compress(df, original_size=size_in_mb, mode="PSNR")
+    sz_compress(df, mode="REL")
 
 
 if __name__ == "__main__":
