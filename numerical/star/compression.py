@@ -25,66 +25,78 @@ def zstd_compress(df):
         compressed = zstd.compress(column)
         compress_size = get_size_in_mb(compressed)
         print(
-            f"Column {col_name}: compressed size: {compress_size:.2f}MB, "
+            f"Column {col_name}: compressed size: {compress_size * 1000:.2f}KB, "
             f"compression ratio: {original_size / compress_size:.3f}"
         )
 
 
-def zfpy_compress(df, original_size, mode):
-    ndarray = df.to_numpy()
+def zfpy_compress(df, mode):
+    # ndarray = df.to_numpy()
     # Reverse mode
-    if mode == "reverse":
-        compressed = zfpy.compress_numpy(ndarray)
-        size_in_mb = sys.getsizeof(compressed) / 1024**2
-        print(
-            f"Reverse mode compressed size: {size_in_mb:.2f}MB, compression ratio: {original_size / size_in_mb:.3f}"
-        )
-
-    # Fixed rate mode
-    elif mode == "fixed_rate":
-        result = {"rate": [], "compression_ratio": [], "log_abs_error": []}
-        for rate in range(2, 16, 2):
-            compressed = zfpy.compress_numpy(ndarray, rate=rate)
-            size_in_mb = sys.getsizeof(compressed) / 1024**2
-            compr_ratio = original_size / size_in_mb
-            print(f"Rate: {rate}:")
-            print(
-                f"Fixed rate mode compressed size: {size_in_mb:.2f}MB, compression ratio: {compr_ratio:.3f}"
-            )
-            avg_abs_error = abs_error(ndarray, zfpy.decompress_numpy(compressed))
-            result["rate"].append(rate)
-            result["compression_ratio"].append(compr_ratio)
-            result["log_abs_error"].append(np.log(avg_abs_error))
-        pd.DataFrame.from_dict(result).to_csv("outputs/fixed_rate.csv", index=False)
-
-    # Fixed precision mode
-    elif mode == "fixed_precision":
-        result = {"precision": [], "compression_ratio": [], "log_abs_error": []}
-        for precision in range(16, 31, 2):
-            compressed = zfpy.compress_numpy(ndarray, precision=precision)
-            size_in_mb = sys.getsizeof(compressed) / 1024**2
-            compr_ratio = original_size / size_in_mb
-            print(
-                f"Fixed precision mode compressed size: {size_in_mb:.2f}MB, compression ratio: {compr_ratio:.3f}"
-            )
-            avg_abs_error = abs_error(ndarray, zfpy.decompress_numpy(compressed))
-            result["precision"].append(precision)
-            result["compression_ratio"].append(compr_ratio)
-            result["log_abs_error"].append(np.log(avg_abs_error))
-        pd.DataFrame.from_dict(result).to_csv(
-            "outputs/fixed_precision.csv", index=False
-        )
-
-    # Fixed accuracy mode
-    elif mode == "fixed_accuracy":
-        df = df.astype(np.float32)
-        for tolerance in [1e-2, 1e10]:
-            compressed = zfpy.compress_numpy(ndarray, tolerance=tolerance)
+    for col_name in df.columns:
+        original_size = get_size_in_mb(df[col_name])
+        ndarray = df[col_name].to_numpy()
+        if mode == "reverse":
+            compressed = zfpy.compress_numpy(ndarray)
             size_in_mb = sys.getsizeof(compressed) / 1024**2
             print(
-                f"Accuracy mode compressed size: {size_in_mb:.2f}MB, compression ratio: {original_size / size_in_mb:.3f}"
+                f"Reverse mode compressed size: {size_in_mb:.2f}MB, compression ratio: {original_size / size_in_mb:.3f}"
             )
-            abs_error(ndarray, zfpy.decompress_numpy(compressed))
+
+        # Fixed rate mode
+        elif mode == "fixed_rate":
+            result = {"rate": [], "compression_ratio": [], "abs_error": []}
+            for rate in range(2, 16, 2):
+                compressed = zfpy.compress_numpy(ndarray, rate=rate)
+                size_in_mb = sys.getsizeof(compressed) / 1024**2
+                compr_ratio = original_size / size_in_mb
+                print(f"Rate: {rate}:")
+                print(
+                    f"Fixed rate mode compressed size: {size_in_mb:.2f}MB, compression ratio: {compr_ratio:.3f}"
+                )
+                avg_abs_error = abs_error(ndarray, zfpy.decompress_numpy(compressed))
+                result["rate"].append(rate)
+                result["compression_ratio"].append(compr_ratio)
+                result["abs_error"].append(avg_abs_error)
+            pd.DataFrame.from_dict(result).to_csv(
+                f"outputs/{col_name}_fixed_rate.csv", index=False
+            )
+
+        # Fixed precision mode
+        elif mode == "fixed_precision":
+            result = {"precision": [], "compression_ratio": [], "abs_error": []}
+            for precision in range(16, 31, 2):
+                compressed = zfpy.compress_numpy(ndarray, precision=precision)
+                size_in_mb = sys.getsizeof(compressed) / 1024**2
+                compr_ratio = original_size / size_in_mb
+                print(
+                    f"Fixed precision mode compressed size: {size_in_mb:.2f}MB, compression ratio: {compr_ratio:.3f}"
+                )
+                avg_abs_error = abs_error(ndarray, zfpy.decompress_numpy(compressed))
+                result["precision"].append(precision)
+                result["compression_ratio"].append(compr_ratio)
+                result["abs_error"].append(avg_abs_error)
+            pd.DataFrame.from_dict(result).to_csv(
+                f"outputs/{col_name}_fixed_precision.csv", index=False
+            )
+
+        # Fixed accuracy mode
+        elif mode == "fixed_accuracy":
+            result = {"tolerance": [], "compression_ratio": [], "abs_error": []}
+            for tolerance in [1e-2, 1e-3]:
+                compressed = zfpy.compress_numpy(ndarray, tolerance=tolerance)
+                size_in_mb = sys.getsizeof(compressed) / 1024**2
+                compr_ratio = original_size / size_in_mb
+                print(
+                    f"Accuracy mode compressed size: {size_in_mb:.2f}MB, compression ratio: {original_size / size_in_mb:.3f}"
+                )
+                avg_abs_error = abs_error(ndarray, zfpy.decompress_numpy(compressed))
+                result["tolerance"].append(tolerance)
+                result["compression_ratio"].append(compr_ratio)
+                result["abs_error"].append(avg_abs_error)
+            pd.DataFrame.from_dict(result).to_csv(
+                f"outputs/{col_name}_fixed_accuracy.csv", index=False
+            )
 
 
 def sz_compress(df, mode):
@@ -128,7 +140,7 @@ def sz_compress(df, mode):
                 column, sz.decompress(compressed, column.shape, column.dtype)
             )
             print(
-                f"Column {col_name}: compressed size: {compress_size:.2f}MB, "
+                f"Column {col_name}: compressed size: {compress_size * 1000:.2f}KB, "
                 f"compression ratio: {original_size / compress_size:.3f}, "
                 f"error: {avg_abs_error:.3f}"
             )
@@ -158,8 +170,8 @@ def test_compression():
     # Measure size of original data frame and compressed data frame
     size_in_mb = sys.getsizeof(df) / 1024**2
     print(f"Before compression size: {size_in_mb:.2f}MB")
-    # zstd_compress(df)
-    # zfpy_compress(df, mode="fixed_rate")
+    zstd_compress(df)
+    # zfpy_compress(df, mode="fixed_accuracy")
 
     sz_compress(df, mode="REL")
 
