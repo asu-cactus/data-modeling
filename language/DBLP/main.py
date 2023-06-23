@@ -138,7 +138,7 @@ def compute_metrics(eval_preds, metric):
 
 def eval(args, model, test_dataloader):  # TODO: modify for sequence output
     model.eval()
-    metric = evaluate.load("sacrebleu")
+    metric = evaluate.load("bleu")
 
     losses = 0
     bleu_scores = []
@@ -250,7 +250,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--checkpoint",
         type=str,
-        default="t5-base",
+        default="t5-small",
         help="Which checkpoint to use",
     )
     parser.add_argument(
@@ -272,7 +272,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--lr",
         type=float,
-        default=1e-5,
+        default=2e-5,
         metavar="LR",
         help="learning rate",
     )
@@ -316,7 +316,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--device",
         type=str,
-        default="cuda:1",
+        default="cuda",
         help="GPU ID for this process",
     )
     parser.add_argument(
