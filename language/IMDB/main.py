@@ -119,12 +119,12 @@ def train(args, model, optimizer, train_dataloader, test_dataloader):
                 f"ɛ: {eps:.2f}"
             )
 
-    # Final evaluation
-    _, eval_accuracy = evaluate(args, model, test_dataloader)
-    eps = privacy_engine.get_epsilon(args.delta)
-    print(
-        f"Final evaluation | " f"Eval accuracy: {eval_accuracy:.3f} | " f"ɛ: {eps:.2f}"
-    )
+    # # Final evaluation
+    # _, eval_accuracy = evaluate(args, model, test_dataloader)
+    # eps = privacy_engine.get_epsilon(args.delta)
+    # print(
+    #     f"Final evaluation | " f"Eval accuracy: {eval_accuracy:.3f} | " f"ɛ: {eps:.2f}"
+    # )
 
 
 def get_model():

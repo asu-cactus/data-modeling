@@ -1,8 +1,7 @@
 from transformers import AutoTokenizer
 from transformers import DataCollatorForSeq2Seq
-from transformers import AutoModelForSeq2SeqLM, Seq2SeqTrainingArguments, Seq2SeqTrainer
-from transformers import BertForNextSentencePrediction
-from datasets import load_dataset
+from transformers import AutoModelForSeq2SeqLM
+from datasets import load_dataset, Dataset, DatasetDict
 import evaluate
 
 from opacus import PrivacyEngine
@@ -11,26 +10,62 @@ from opacus.utils.batch_memory_manager import BatchMemoryManager
 import torch
 import numpy as np
 
+import json
 import argparse
 import warnings
 
 warnings.simplefilter("ignore")
 import os
+import pdb
 
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
+TOPK = 10  # In evaluation, the best bleu score of the topk similar titles is reported
+
 
 def load_data():
-    books = load_dataset("opus_books", "en-fr")
-    books = books["train"].train_test_split(test_size=0.2)
-    return books
+    # Construct train data
+    with open("data/train_data.json", "r") as f:
+        train_data = json.load(f)
+
+    train_data = [
+        {
+            "title": example["title"],
+            "author&year": f"authors: {example['authors']}, year: {example['year']}",
+        }
+        for example in train_data["training_articles"]
+    ]
+    train_data = Dataset.from_list(train_data)
+    # Construct test data
+    with open("data/test_data.json", "r") as f:
+        test_raw = json.load(f)
+    # test_raw["articles"] = test_raw["articles"][:100]  # TODO: remove this line
+    test_data = []
+    for example in test_raw["articles"]:
+        title = example["title"]
+        for similar_examples in example["topKSimilarArticles"]:
+            test_data.append(
+                {
+                    "title": title,
+                    "author&year": f"authors: {similar_examples['authors']}, year: {similar_examples['year']}",
+                }
+            )
+    test_data = Dataset.from_list(test_data)
+
+    # Construct DatasetDict
+    data = DatasetDict({"train": train_data, "test": test_data})
+    return data
+
+    # books = load_dataset("opus_books", "en-fr")
+    # books = books["train"].train_test_split(test_size=0.9)
+    # return books
 
 
 def tokenize_data(examples, args):
-    def preprocess_function(examples):
-        prefix = "translate English to French: "
-        inputs = [prefix + example["en"] for example in examples["translation"]]
-        targets = [example["fr"] for example in examples["translation"]]
+    def preprocess_function(samples):
+        prefix = "Output authors and publish year for title: "
+        inputs = [prefix + example for example in samples["title"]]
+        targets = [example for example in samples["author&year"]]
         model_inputs = tokenizer(
             inputs,
             text_target=targets,
@@ -41,35 +76,6 @@ def tokenize_data(examples, args):
 
     tokenized_data = examples.map(preprocess_function, batched=True)
     return tokenized_data
-
-
-def postprocess_text(preds, labels):
-    preds = [pred.strip() for pred in preds]
-    labels = [[label.strip()] for label in labels]
-
-    return preds, labels
-
-
-def compute_metrics(eval_preds):
-    preds, labels = eval_preds
-    if isinstance(preds, tuple):
-        preds = preds[0]
-    decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
-
-    labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
-    decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
-
-    decoded_preds, decoded_labels = postprocess_text(decoded_preds, decoded_labels)
-
-    result = metric.compute(predictions=decoded_preds, references=decoded_labels)
-    result = {"bleu": result["score"]}
-
-    prediction_lens = [
-        np.count_nonzero(pred != tokenizer.pad_token_id) for pred in preds
-    ]
-    result["gen_len"] = np.mean(prediction_lens)
-    result = {k: round(v, 4) for k, v in result.items()}
-    return result
 
 
 def get_model(checkpoint):
@@ -97,6 +103,78 @@ def get_model(checkpoint):
     print(f"Total parameters count: {total_params}")  # 60M
     print(f"Trainable parameters count: {trainable_params}")  # 2M
     return model
+
+
+def postprocess_text(preds, labels):
+    preds = [pred.strip() for pred in preds]
+    labels = [[label.strip()] for label in labels]
+
+    return preds, labels
+
+
+def compute_metrics(eval_preds, metric):
+    preds, labels = eval_preds
+    if isinstance(preds, tuple):
+        preds = preds[0]
+    decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
+
+    labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
+    decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
+
+    decoded_preds, decoded_labels = postprocess_text(decoded_preds, decoded_labels)
+
+    result = metric.compute(predictions=decoded_preds, references=decoded_labels)
+    return result["score"]
+
+    result = {"bleu": result["score"]}
+
+    prediction_lens = [
+        np.count_nonzero(pred != tokenizer.pad_token_id) for pred in preds
+    ]
+    result["gen_len"] = np.mean(prediction_lens)
+    result = {k: round(v, 4) for k, v in result.items()}
+    return result
+
+
+def eval(args, model, test_dataloader):  # TODO: modify for sequence output
+    model.eval()
+    metric = evaluate.load("sacrebleu")
+
+    losses = 0
+    bleu_scores = []
+
+    device = torch.device(args.device)
+    for batch in test_dataloader:
+        with torch.no_grad():
+            inputs = {
+                "input_ids": batch["input_ids"].to(device),
+                "attention_mask": batch["attention_mask"].to(device),
+                "labels": batch["labels"].to(device),
+            }
+            # inputs = {"input_ids": batch[0], "labels": batch[1]}
+            outputs = model(**inputs)
+            loss, logits = outputs[:2]
+
+            preds = np.argmax(logits.detach().cpu().numpy(), axis=2)
+            labels = batch["labels"].numpy()
+
+            losses += loss.item()
+            bleu_scores.append(compute_metrics((preds, labels), metric))
+
+    data_size = len(test_dataloader.dataset)
+    bleu_score = (
+        sum(
+            [
+                max(bleu_scores[start : start + TOPK])
+                for start in range(0, len(bleu_scores), TOPK)
+            ]
+        )
+        / data_size
+        * TOPK
+    )
+    loss = losses / data_size
+    model.train()
+    return loss, bleu_score
 
 
 def train(args, model, optimizer, train_dataloader, test_dataloader):
@@ -147,23 +225,16 @@ def train(args, model, optimizer, train_dataloader, test_dataloader):
             train_loss = np.mean(losses)
             eps = privacy_engine.get_epsilon(args.delta)
 
-            eval_loss, eval_accuracy = evaluate(args, model, test_dataloader)
+            eval_loss, bleu_score = eval(args, model, test_dataloader)
 
             print(
                 f"Epoch: {epoch} | "
                 # f"Step: {step} | "
                 f"Train loss: {train_loss:.3f} | "
                 f"Eval loss: {eval_loss:.3f} | "
-                f"Eval accuracy: {eval_accuracy:.3f} | "
+                f"Eval bleu_score: {bleu_score:.3f} | "
                 f"ɛ: {eps:.2f}"
             )
-
-    # Final evaluation
-    _, eval_accuracy = evaluate(args, model, test_dataloader)
-    eps = privacy_engine.get_epsilon(args.delta)
-    print(
-        f"Final evaluation | " f"Eval accuracy: {eval_accuracy:.3f} | " f"ɛ: {eps:.2f}"
-    )
 
 
 if __name__ == "__main__":
@@ -179,7 +250,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--checkpoint",
         type=str,
-        default="t5-small",
+        default="t5-base",
         help="Which checkpoint to use",
     )
     parser.add_argument(
@@ -194,14 +265,14 @@ if __name__ == "__main__":
         "-n",
         "--epochs",
         type=int,
-        default=10,
+        default=20,
         metavar="N",
         help="number of epochs to train",
     )
     parser.add_argument(
         "--lr",
         type=float,
-        default=2e-5,
+        default=1e-5,
         metavar="LR",
         help="learning rate",
     )
@@ -224,7 +295,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--epsilon",
         type=float,
-        default=7.5,
+        default=20.0,
         metavar="D",
         help="Target privacy budget",
     )
@@ -238,14 +309,14 @@ if __name__ == "__main__":
     parser.add_argument(
         "--max_sequence_length",
         type=int,
-        default=128,
+        default=64,
         metavar="SL",
         help="Longer sequences will be cut to this length",
     )
     parser.add_argument(
         "--device",
         type=str,
-        default="cuda",
+        default="cuda:1",
         help="GPU ID for this process",
     )
     parser.add_argument(
@@ -260,19 +331,16 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     tokenizer = AutoTokenizer.from_pretrained(args.checkpoint)
-    metric = evaluate.load("sacrebleu")
 
     # Prepare dataset
     examples = load_data()
     tokenized_data = tokenize_data(examples, args)
-    # import pdb; pdb.set_trace()
+
     tokenized_data.set_format(type="torch", columns=["input_ids", "labels"])
 
     data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=args.checkpoint)
     train_dataset = tokenized_data["train"]
     test_dataset = tokenized_data["test"]
-
-    # import pdb; pdb.set_trace()
 
     train_dataloader = torch.utils.data.DataLoader(
         train_dataset,
@@ -294,39 +362,10 @@ if __name__ == "__main__":
 
     # Differentially private training
     model = get_model(args.checkpoint)
-    model = model.to(args.device)
+    model = model.to(torch.device(args.device))
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, eps=1e-8)
 
     train(args, model, optimizer, train_dataloader, test_dataloader)
-
-    # Train model
-    # training_args = Seq2SeqTrainingArguments(
-    #     output_dir="outputs",
-    #     evaluation_strategy="epoch",
-    #     learning_rate=args.lr,
-    #     per_device_train_batch_size=args.batch_size,
-    #     per_device_eval_batch_size=args.batch_size,
-    #     dataloader_num_workers=args.workers,
-    #     weight_decay=0.01,
-    #     save_total_limit=3,
-    #     num_train_epochs=args.epochs,
-    #     predict_with_generate=True,
-    #     fp16=True,
-    #     push_to_hub=False,
-    # )
-
-    # trainer = Seq2SeqTrainer(
-    #     model=model,
-    #     optimizers=(optimizer, None),
-    #     args=training_args,
-    #     train_dataset=tokenized_data["train"],
-    #     eval_dataset=tokenized_data["test"],
-    #     tokenizer=tokenizer,
-    #     data_collator=data_collator,
-    #     compute_metrics=compute_metrics,
-    # )
-
-    # trainer.train()
 
     # Without DP
     # Result: Only last FF layer of the last block
