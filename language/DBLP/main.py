@@ -27,7 +27,9 @@ def load_data():
     # Construct train data
     with open("data/train_data.json", "r") as f:
         train_data = json.load(f)
-
+    # train_data["articles"] = train_data["training_articles"][
+    #     :100
+    # ]  # TODO: remove this line
     train_data = [
         {
             "title": example["title"],
@@ -36,6 +38,7 @@ def load_data():
         for example in train_data["training_articles"]
     ]
     train_data = Dataset.from_list(train_data)
+
     # Construct test data
     with open("data/test_data.json", "r") as f:
         test_raw = json.load(f)
@@ -82,10 +85,20 @@ def get_model(checkpoint):
     model = AutoModelForSeq2SeqLM.from_pretrained(checkpoint)
     # model = BertForNextSentencePrediction.from_pretrained(checkpoint)
     # Freeze some layers
-    trainable_layers = [
-        model.decoder.block[-1].layer[-1].DenseReluDense.wi,
-        model.decoder.block[-1].layer[-1].DenseReluDense.wo,
-    ]
+
+    trainable_layers = []
+    for block in model.decoder.block:
+        trainable_layers.extend(
+            [
+                block.layer[-1].DenseReluDense.wi,
+                block.layer[-1].DenseReluDense.wo,
+            ]
+        )
+
+    # trainable_layers = [
+    #     model.decoder.block[-1].layer[-1].DenseReluDense.wi,
+    #     model.decoder.block[-1].layer[-1].DenseReluDense.wo,
+    # ]
     total_params = 0
     trainable_params = 0
 
@@ -114,19 +127,24 @@ def postprocess_text(preds, labels):
 
 def compute_metrics(eval_preds, metric):
     preds, labels = eval_preds
+    assert len(preds) == TOPK
     if isinstance(preds, tuple):
         preds = preds[0]
     decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
 
     labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
     decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
-
     decoded_preds, decoded_labels = postprocess_text(decoded_preds, decoded_labels)
+    decoded_labels = [[l[0] for l in decoded_labels] for _ in range(TOPK)]
 
-    result = metric.compute(predictions=decoded_preds, references=decoded_labels)
-    return result["score"]
-
-    result = {"bleu": result["score"]}
+    # bleu = max(
+    #     [
+    #         metric.compute(predictions=[p], references=[r])["bleu"]
+    #         for p, r in zip(decoded_preds, decoded_labels)
+    #     ]
+    # )
+    bleu = metric.compute(predictions=decoded_preds, references=decoded_labels)["bleu"]
+    return bleu
 
     prediction_lens = [
         np.count_nonzero(pred != tokenizer.pad_token_id) for pred in preds
@@ -161,18 +179,8 @@ def eval(args, model, test_dataloader):  # TODO: modify for sequence output
             losses += loss.item()
             bleu_scores.append(compute_metrics((preds, labels), metric))
 
-    data_size = len(test_dataloader.dataset)
-    bleu_score = (
-        sum(
-            [
-                max(bleu_scores[start : start + TOPK])
-                for start in range(0, len(bleu_scores), TOPK)
-            ]
-        )
-        / data_size
-        * TOPK
-    )
-    loss = losses / data_size
+    bleu_score = sum(bleu_scores) / len(bleu_scores)
+    loss = losses / len(test_dataloader.dataset)
     model.train()
     return loss, bleu_score
 
@@ -295,7 +303,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--epsilon",
         type=float,
-        default=20.0,
+        default=7.5,
         metavar="D",
         help="Target privacy budget",
     )
@@ -341,7 +349,7 @@ if __name__ == "__main__":
     data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=args.checkpoint)
     train_dataset = tokenized_data["train"]
     test_dataset = tokenized_data["test"]
-
+    # pdb.set_trace()
     train_dataloader = torch.utils.data.DataLoader(
         train_dataset,
         num_workers=args.workers,
@@ -353,7 +361,7 @@ if __name__ == "__main__":
 
     test_dataloader = torch.utils.data.DataLoader(
         test_dataset,
-        batch_size=args.batch_size,
+        batch_size=TOPK,
         shuffle=False,
         num_workers=args.workers,
         collate_fn=data_collator,
