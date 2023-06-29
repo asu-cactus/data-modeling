@@ -148,24 +148,29 @@ def sz_compress(df, mode):
 
 def test_compression():
     names = {
+        "charge": np.int32,
+        "clus": np.int32,
         "dst": np.int32,
         "hist": np.int32,
         "enumber": np.int32,
-        "etime": np.float64,
+        "etime": np.float32,
         "rnumber": np.int32,
+        "nlb": np.int32,
+        "qxb": np.float32,
+        "tracks": np.int32,
+        "vertex": np.float32,
+        "zdc": np.int32,
     }
 
     df = pd.read_csv(
         "data/star2000.csv.gz",
         header=None,
-        usecols=[2, 3, 4, 5, 6],
         names=list(names),
         dtype=names,
     )
 
     # Convert data frame to int32 and add index column
-    df = df.astype(np.int32)
-    # df["index"] = df.index
+    # df = df.astype(np.int32)
 
     # Measure size of original data frame and compressed data frame
     size_in_mb = sys.getsizeof(df) / 1024**2

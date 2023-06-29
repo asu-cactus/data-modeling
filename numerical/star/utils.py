@@ -24,12 +24,12 @@ from random import sample
 #     'dst': np.int32,
 #     'hist': np.int32,
 #     'enumber': np.int32,
-#     'etime': np.float64,
+#     'etime': np.float32,
 #     'rnumber': np.int32,
 #     'nlb': np.int32,
-#     'qxb': np.float64,
+#     'qxb': np.float32,
 #     'tracks': np.int32,
-#     'vertex': np.float64,
+#     'vertex': np.float32,
 #     'zdc': np.int32,
 # }
 
