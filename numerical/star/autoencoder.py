@@ -17,61 +17,45 @@ logger.setLevel(logging.DEBUG)
 
 
 def load_data(column):
-    normalize_factors = {
-        0: 1e-3,  # charge
-        1: 1e-4,  # clus
-        2: 1e-6,  # dst
-        3: 1e-6,  # hist
-        4: 1e-5,  # enumber
-        5: 1e-8,  # etime
-        6: 1e-7,  # rnumber
-        7: 1e-4,  # nlb
-        8: 1e-2,  # qxb
-        9: 1e-4,  # tracks
-        10: 1e-3,  # vertex
-        11: 1e-3,  # zdc
-    }
+    # normalize_factors = {
+    #     0: 1e-3,  # charge
+    #     1: 1e-4,  # clus
+    #     2: 1e-6,  # dst
+    #     3: 1e-6,  # hist
+    #     4: 1e-5,  # enumber
+    #     5: 1e-8,  # etime
+    #     6: 1e-7,  # rnumber
+    #     7: 1e-4,  # nlb
+    #     8: 1e-2,  # qxb
+    #     9: 1e-4,  # tracks
+    #     10: 1e-3,  # vertex
+    #     11: 1e-3,  # zdc
+    # }
 
     data = pd.read_csv(
         "data/star2000.csv.gz",
         header=None,
-        nrows=NROWS,
+        # nrows=NROWS,
+        nrows=2_000_000,
         usecols=[column],
         dtype=np.float32,  # Make data type to be float32
     )
-    data = data.to_numpy().reshape((-1, len(data)))
-    data = data * normalize_factors[column]  # Normalize data
+    data = data.to_numpy().reshape((-1, NROWS))
+    # data = data * normalize_factors[column]  # Normalize data
     return data
-
-
-# class Autoencoder(nn.Module):
-#     def __init__(self):
-#         super().__init__()
-#         self.encoder = nn.Sequential(
-#             nn.Linear(NROWS, 600),
-#             nn.ReLU(),
-#             nn.Linear(600, 400),
-#         )
-#         self.decoder = nn.Sequential(
-#             nn.Linear(400, 600),
-#             nn.ReLU(),
-#             nn.Linear(600, NROWS),
-#             nn.Sigmoid(),
-#         )
-
-#     def forward(self, x):
-#         x = self.encoder(x)
-#         x = self.decoder(x)
-#         return x
 
 
 class Encoder(nn.Module):
     def __init__(self):
         super().__init__()
         self.encoder = nn.Sequential(
-            nn.Linear(NROWS, 400),
+            nn.Linear(NROWS, 6000),
             nn.ReLU(),
-            nn.Linear(400, 200),
+            nn.Linear(6000, 3000),
+            nn.ReLU(),
+            nn.Linear(3000, 1000),
+            nn.ReLU(),
+            nn.Linear(1000, 50),
         )
 
     def forward(self, x):
@@ -82,10 +66,14 @@ class Decoder(nn.Module):
     def __init__(self):
         super().__init__()
         self.decoder = nn.Sequential(
-            nn.Linear(200, 400),
+            nn.Linear(50, 1000),
             nn.ReLU(),
-            nn.Linear(400, NROWS),
-            nn.Sigmoid(),
+            nn.Linear(1000, 3000),
+            nn.ReLU(),
+            nn.Linear(3000, 6000),
+            nn.ReLU(),
+            nn.Linear(6000, NROWS),
+            # nn.Sigmoid(),
         )
 
     def forward(self, x):
@@ -103,8 +91,9 @@ def run(data):
         lr=learning_rate,
         weight_decay=1e-5,
     )
-    scheduler = ReduceLROnPlateau(optimizer, "min", patience=100)
+    scheduler = ReduceLROnPlateau(optimizer, "min", patience=500, verbose=True)
 
+    smallest_loss = np.inf
     for epoch in range(1, num_epochs + 1):
         # ===================forward=====================
         output = encoder(data.to("cuda:0"))
@@ -116,10 +105,13 @@ def run(data):
         optimizer.step()
         scheduler.step(loss)
         # ===================log========================
+        smallest_loss = min(smallest_loss, loss.item())
         if epoch % 100 == 0:
-            logger.info("epoch [{}/{}], loss:{}".format(epoch, num_epochs, loss.item()))
-    torch.save(encoder.state_dict(), "./outputs/encoder.pth")
-    torch.save(decoder.state_dict(), "./outputs/decoder.pth")
+            logger.info(
+                f"epoch [{epoch}/{num_epochs}], loss:{loss.item()}, smallest_loss: {smallest_loss}"
+            )
+    # torch.save(encoder.state_dict(), "./outputs/encoder.pth")
+    # torch.save(decoder.state_dict(), "./outputs/decoder.pth")
 
 
 if __name__ == "__main__":
@@ -138,10 +130,10 @@ if __name__ == "__main__":
     #     "zdc": np.int32,
     # }
 
-    NROWS = 1_000_000  # total rows = 2_173_762
-    num_epochs = 100_000
+    NROWS = 20_000  # total rows = 2_173_762
+    num_epochs = 50_000
     learning_rate = 1e-5
 
-    column = 1
+    column = 2
     data = load_data(column)
     run(data)

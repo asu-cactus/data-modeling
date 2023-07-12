@@ -8,8 +8,11 @@ from third_party.pysz import (
 )  # remember to include "third_party" folder in LD_LIBRARY_PATH
 
 
-def abs_error(array1, array2):
-    abs_error = np.mean(np.abs(array1 - array2), axis=0)
+def abs_error(array1, array2, mode="mse"):
+    if mode == "abs":
+        abs_error = np.mean(np.abs(array1 - array2), axis=0)
+    elif mode == "mse":
+        abs_error = np.mean((array1 - array2) ** 2, axis=0)
     # print(abs_error)
     return abs_error.mean()
 
@@ -142,7 +145,7 @@ def sz_compress(df, mode):
             print(
                 f"Column {col_name}: compressed size: {compress_size * 1000:.2f}KB, "
                 f"compression ratio: {original_size / compress_size:.3f}, "
-                f"error: {avg_abs_error:.3f}"
+                f"error: {avg_abs_error:.6f}"
             )
 
 
