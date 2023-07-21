@@ -8,13 +8,13 @@ from third_party.pysz import (
 )  # remember to include "third_party" folder in LD_LIBRARY_PATH
 
 
-def abs_error(array1, array2, mode="mse"):
+def abs_error(array1, array2, mode="abs"):
     if mode == "abs":
-        abs_error = np.mean(np.abs(array1 - array2), axis=0)
+        error = np.mean(np.abs(array1 - array2), axis=0)
     elif mode == "mse":
-        abs_error = np.mean((array1 - array2) ** 2, axis=0)
+        error = np.mean((array1 - array2) ** 2, axis=0)
     # print(abs_error)
-    return abs_error.mean()
+    return error.mean()
 
 
 def get_size_in_mb(object):

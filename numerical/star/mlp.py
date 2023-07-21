@@ -28,11 +28,11 @@ def get_classification_model(out_units, checkpoint=None):
 
 def get_regression_model(checkpoint=None):
     model = nn.Sequential(
-        nn.Linear(1, 800),
+        nn.Linear(1, 1024),
         nn.ReLU(),
-        nn.Linear(800, 512),
+        nn.Linear(1024, 1024),
         nn.ReLU(),
-        nn.Linear(512, 1),
+        nn.Linear(1024, 1),
     )
     if checkpoint is not None:
         model.load_state_dict(torch.load(f"outputs/{checkpoint}"))
@@ -164,7 +164,9 @@ def train(
         torch.save(model.state_dict(), model_path)
 
 
-def main(usecols: int, name: str, dtype, is_regression: bool, epochs: int, is_dpsgd=False):
+def main(
+    usecols: int, name: str, dtype, is_regression: bool, epochs: int, is_dpsgd=False
+):
     data = load_data(usecols, name, dtype)
     if not is_regression:
         num_cate = to_categorical(data, name)
@@ -190,7 +192,7 @@ def main(usecols: int, name: str, dtype, is_regression: bool, epochs: int, is_dp
         #     noise_multiplier=1.0,
         #     max_grad_norm=1.0,
         # )
-        
+
         model, optimizer, training_loader = privacy_engine.make_private_with_epsilon(
             module=model,
             optimizer=optimizer,
@@ -200,7 +202,7 @@ def main(usecols: int, name: str, dtype, is_regression: bool, epochs: int, is_dp
             epochs=epochs,
             max_grad_norm=1.0,
         )
-   
+
     train(
         model,
         training_loader,
@@ -211,18 +213,19 @@ def main(usecols: int, name: str, dtype, is_regression: bool, epochs: int, is_dp
         epochs,
         privacy_engine=privacy_engine,
     )
-    epsilon = privacy_engine.get_epsilon(1e-5)
-    print(f"Final epsilon: {epsilon}")
+    if is_dpsgd:
+        epsilon = privacy_engine.get_epsilon(1e-5)
+        print(f"Final epsilon: {epsilon}")
 
 
 if __name__ == "__main__":
-    device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     usecols = 6
     name = "rnumber"
     dtype = np.int32
     is_regression = True
-    is_dpsgd = True
+    is_dpsgd = False
 
-    epochs = 10
+    epochs = 50
 
     main(usecols, name, dtype, is_regression, epochs, is_dpsgd=is_dpsgd)
