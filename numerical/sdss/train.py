@@ -7,20 +7,21 @@ import os
 
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+logging.basicConfig(level=logging.INFO, format="%(name)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
 
 import torch
 import transformers
-from utils import load_data, estimate_model_size
+from utils import load_data, estimate_model_size, NROWS
 from torch.utils.data import Dataset
 
 
 IGNORE_INDEX = -100
-# DEFAULT_PAD_TOKEN = "[PAD]"
+DEFAULT_PAD_TOKEN = "[PAD]"
 # DEFAULT_BOS_TOKEN = "<s>"
-# DEFAULT_EOS_TOKEN = "</s>"
-MAX_LENGTH = 34
-NGPU = 4
-NROWS = 168646652
+DEFAULT_EOS_TOKEN = "</s>"
+MAX_LENGTH = 35
+NGPU = 2
 
 PROMPT_DICT = {
     "prompt_input": "{intruction}{input}",
@@ -58,8 +59,8 @@ class TrainingArguments(transformers.TrainingArguments):
     # learning_rate: float = field(default=2e-4)
     # lr_scheduler_type: str = field(default="linear")
     # Batch size and epochs
-    per_device_train_batch_size: int = field(default=1024)
-    num_train_epochs: float = field(default=1000.0)
+    per_device_train_batch_size: int = field(default=512)
+    num_train_epochs: float = field(default=3000.0)
     # Logging and saving
     logging_strategy: str = field(default="epoch")
     save_strategy: str = field(default="epoch")
@@ -157,11 +158,11 @@ class SupervisedDataset(Dataset):
 
     def __init__(self, tokenizer: transformers.PreTrainedTokenizer):
         super(SupervisedDataset, self).__init__()
-        logging.warning("Loading data...")
+        logger.info("Loading data...")
 
         list_data_dict = load_data()
 
-        logging.warning("Formatting inputs...")
+        logger.info("Formatting inputs...")
         prompt_input, prompt_no_input = (
             PROMPT_DICT["prompt_input"],
             PROMPT_DICT["prompt_no_input"],
@@ -177,7 +178,7 @@ class SupervisedDataset(Dataset):
         ]
 
         del list_data_dict
-        logging.warning("Tokenizing inputs... This may take some time...")
+        logger.info("Tokenizing inputs... This may take some time...")
         data_dict = preprocess(sources, targets, tokenizer)
 
         self.input_ids = data_dict["input_ids"]
@@ -227,6 +228,22 @@ def train():
     parser = transformers.HfArgumentParser((ModelArguments, TrainingArguments))
     model_args, training_args = parser.parse_args_into_dataclasses()
 
+    tokenizer = transformers.PreTrainedTokenizerFast(
+        model_max_length=training_args.model_max_length,
+        padding_side="right",
+        tokenizer_file="tokenizer/sdss_tokenizer.json",
+    )
+
+    special_tokens_dict = dict()
+    if tokenizer.pad_token is None:
+        special_tokens_dict["pad_token"] = DEFAULT_PAD_TOKEN
+    # if tokenizer.bos_token is None:
+    #     special_tokens_dict["bos_token"] = DEFAULT_BOS_TOKEN
+    if tokenizer.eos_token is None:
+        special_tokens_dict["eos_token"] = DEFAULT_EOS_TOKEN
+
+    data_module = make_supervised_data_module(tokenizer=tokenizer)
+
     model = transformers.AutoModelForCausalLM.from_config(
         transformers.LlamaConfig(
             vocab_size=model_args.vocab_size,
@@ -239,36 +256,18 @@ def train():
             initializer_range=model_args.initializer_range,
             rms_norm_eps=model_args.rms_norm_eps,
             use_cache=model_args.use_cache,
-            pad_token_id=model_args.pad_token_id,
+            # pad_token_id=model_args.pad_token_id,
             # bos_token_id=model_args.bos_token_id,
-            eos_token_id=model_args.eos_token_id,
+            # eos_token_id=model_args.eos_token_id,
             tie_word_embeddings=model_args.tie_word_embeddings,
         )
     )
-
-    tokenizer = transformers.PreTrainedTokenizerFast(
-        model_max_length=training_args.model_max_length,
-        padding_side="right",
-        tokenizer_file="tokenizer/sdss_tokenizer.json",
+    smart_tokenizer_and_embedding_resize(
+        special_tokens_dict=special_tokens_dict,
+        tokenizer=tokenizer,
+        model=model,
     )
-
-    # special_tokens_dict = dict()
-    # if tokenizer.pad_token is None:
-    #     special_tokens_dict["pad_token"] = DEFAULT_PAD_TOKEN
-    # if tokenizer.eos_token is None:
-    #     special_tokens_dict["bos_token"] = DEFAULT_BOS_TOKEN
-    # if tokenizer.eos_token is None:
-    #     special_tokens_dict["eos_token"] = DEFAULT_EOS_TOKEN
-
-    # smart_tokenizer_and_embedding_resize(
-    #     special_tokens_dict=special_tokens_dict,
-    #     tokenizer=tokenizer,
-    #     model=model,
-    # )
-
     estimate_model_size(model)
-
-    data_module = make_supervised_data_module(tokenizer=tokenizer)
 
     trainer = transformers.Trainer(
         model=model,
@@ -282,7 +281,6 @@ def train():
 
 
 def continue_train(checkpoint: str):
-    # TODO: Support dpsgd
     tokenizer = transformers.AutoTokenizer.from_pretrained(f"outputs/{checkpoint}/")
     model = transformers.AutoModelForCausalLM.from_pretrained(f"outputs/{checkpoint}/")
     data_module = make_supervised_data_module(tokenizer=tokenizer)

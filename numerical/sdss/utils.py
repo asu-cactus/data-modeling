@@ -1,16 +1,17 @@
-import pandas as pd
 import numpy as np
 import bz2
 import multiprocessing as mp
 from pathlib import Path
 import logging
 
+logging.basicConfig(level=logging.INFO, format="%(name)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
 # Parameters that don't change
 DATA_DIR = "data"
+# DATA_DIR = "/global/cfs/projectdirs/m1248/john/sdss"
 OUTPUT_DIR = "outputs"
 NROWS = 168646652
 # Make directories
-Path.mkdir(Path(DATA_DIR), exist_ok=True)
 Path.mkdir(Path(OUTPUT_DIR), exist_ok=True)
 
 # Parameters that may change
@@ -20,42 +21,53 @@ NDIGITS = 4
 
 # Function that may change
 def preprocess_func(ndarray):
-    return np.where(ndarray == -9999, 0, ndarray)
+    # Convert -9999 to 0
+    ndarray = np.where(ndarray == -9999, 0, ndarray)
+    # Multiply by 1000 because we want 4 digits
+    ndarray = ndarray * 1000
+    # Convert to integers (In fact they are already integers)
+    return ndarray.astype(np.int32)
 
 
-# Function that may change
-def row_to_string(row):
-    features = [f"int{row[col] * 3}:04" for col in COLS]
+def row_to_string(args):
+    idx, row = args
+    features = [f"{value:04d}" for value in row]
     string = ",".join(features)
-    return string
+    return {"instruction": f"{idx:09d}$", "output": string}
 
 
-def load_data():
+def load_data(return_ndarray=False):
     # Read the data
-    df_data = {}
+    # df_data = {}
+    data = []
     for col in COLS:
-        with bz2.open(f"/global/cfs/projectdirs/m1248/john/sdss/{col}.bz2", "rb") as f:
-            data = f.read()
-        df_data[col] = preprocess_func(np.frombuffer(data, dtype=np.float32))
+        with bz2.open(f"{DATA_DIR}/{col}.bz2", "rb") as f:
+            data_bytes = f.read()
+        data.append(preprocess_func(np.frombuffer(data_bytes, dtype=np.float32)))
 
     # Create a dataframe
-    logging.warning("Creating dataframe...")
-    df = pd.DataFrame(df_data)
+    data = np.stack(data, -1)
+    assert data.shape == (NROWS, len(COLS))
+    if return_ndarray:
+        return data
 
     # Write data to file
-    logging.warning("Processing dataframe to strings...")
-    pool = mp.Pool()
-    row_strings = pool.map(row_to_string, [row for _, row in df.iterrows()])
-    del df
-    return [
-        {"instruction": f"{idx:09}$", "output": row_string}
-        for idx, row_string in enumerate(row_strings)
-    ]
-    # lines = []
-    # for idx, row in df.iterrows():
-    #     row_string = row_to_string(row)
-    #     lines.append({"instruction": f"{idx:09}$", "output": row_string})
-    # return lines
+    logger.info("Processing dataframe to strings...")
+    with mp.Pool(mp.cpu_count() - 2) as pool:
+        data = pool.imap(
+            row_to_string, [(i, row) for i, row in enumerate(data)], 1000000
+        )
+        data = [d for d in data]
+        logger.info("Done processing dataframe to strings.")
+
+        # Write data to file for inspection
+        data_sample = data[0:2000]
+        with open("data/ab_exp_sample.txt", "w") as f:
+            for sample in data_sample:
+                f.write(f"{sample['instruction']}{sample['output']}\n")
+
+        logger.info("Done writing data to file.")
+    return data
 
 
 def estimate_model_size(model):

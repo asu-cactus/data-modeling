@@ -1,17 +1,20 @@
 import transformers
 import torch
 import pandas as pd
+import numpy as np
+from scipy import sparse
 
 from train import DEFAULT_PAD_TOKEN, DEFAULT_EOS_TOKEN, MAX_LENGTH
 from utils import names, USECOLS
 
 from collections import defaultdict
 import os
+import pickle
 
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 
-CHECKPOINT = "checkpoint-5099446"
+CHECKPOINT = "checkpoint-16984000"
 NROWS = 2173762
 device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
 
@@ -78,16 +81,35 @@ def parse_pred_line(line: str):
 
 def compute_accuracy(references, predictions):
     n_correct = defaultdict(int)
-    for ref, pred in zip(references, predictions):
+    aux_structure = np.zeros((len(references), len(names)), dtype=np.int32)
+    for i, (ref, pred) in enumerate(zip(references, predictions)):
         ref = {
             name: ref.split(f"{name}:", maxsplit=1)[1].split(",", maxsplit=1)[0]
             for name in names
         }
         pred = parse_pred_line(pred)
-        for name in names:
-            n_correct[name] += ref[name] == pred[name]
+        for j, name in enumerate(names):
+            if ref[name] == pred[name]:
+                n_correct[name] += 1
+            else:
+                aux_structure[i][j] = int(ref[name])
     accuracy = {name: n / NROWS for name, n in n_correct.items()}
     accuracy["all"] = sum(list(accuracy.values())) / len(accuracy)
+    # Save auxilary structure
+    aux_structure_sparse = sparse.csr_matrix(aux_structure)
+    sparse.save_npz(f"data/{CHECKPOINT}-aux.npz", aux_structure_sparse)
+    return accuracy
+
+
+def eval_accuracy(predictions=None):
+    if predictions is None:
+        predictions = load_lines(f"data/{CHECKPOINT}.txt")
+    references = load_lines(f"data/star2000.txt")
+    assert len(predictions) == len(references)
+
+    # Eval using accuracy
+    accuracy = compute_accuracy(references, predictions)
+    print(f"Accuracy:\n{accuracy}")
     return accuracy
 
 
@@ -108,24 +130,6 @@ def compute_error_mean(references: pd.DataFrame, predictions: list[str]):
     error_mean = {name: n / NROWS for name, n in error_sum.items()}
     error_mean["all"] = sum(list(error_mean.values())) / len(error_mean)
     return error_mean
-
-
-def eval_accuracy(predictions=None):
-    if predictions is None:
-        predictions = load_lines(f"data/{CHECKPOINT}.txt")
-    references = load_lines(f"data/star2000.txt")
-    assert len(predictions) == len(references)
-
-    # # Eval using bleu
-    # import evaluate
-    # model, tokenizer = get_model_and_tokenizer()
-    # bleu = evaluate.load("bleu")
-    # print(bleu.compute(predictions=predictions, references=references, tokenizer=tokenizer.tokenize))
-
-    # Eval using accuracy
-    accuracy = compute_accuracy(references, predictions)
-    print(f"Accuracy:\n{accuracy}")
-    return accuracy
 
 
 def eval_avg_error(predictions=None):
@@ -149,9 +153,9 @@ def eval_avg_error(predictions=None):
 
 
 if __name__ == "__main__":
-    predictions = predict()
-    eval_avg_error(predictions)
-    eval_accuracy(predictions)
+    # predictions = predict()
+    # eval_avg_error(predictions)
+    # eval_accuracy(predictions)
 
-    # eval_accuracy()
+    eval_accuracy()
     # eval_avg_error()
