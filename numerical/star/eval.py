@@ -3,23 +3,47 @@ import torch
 import pandas as pd
 import numpy as np
 from scipy import sparse
+from accelerate.utils import BnbQuantizationConfig
 
 from train import DEFAULT_PAD_TOKEN, DEFAULT_EOS_TOKEN, MAX_LENGTH
-from utils import names, USECOLS
+from utils import names, USECOLS, estimate_model_size
 
 from collections import defaultdict
 import os
+import logging
 
+logging.basicConfig(level=logging.INFO, format="%(name)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 
 CHECKPOINT = "checkpoint-16984000"
 NROWS = 2173762
-device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+quantization = "bitsandbytes8bit"
 
 
 def get_model_and_tokenizer():
-    model = transformers.AutoModelForCausalLM.from_pretrained(f"outputs/{CHECKPOINT}/")
+    if quantization == None:
+        model = transformers.AutoModelForCausalLM.from_pretrained(
+            f"outputs/{CHECKPOINT}/"
+        )
+    elif quantization == "bitsandbytes4bit":
+        quantization_config = BnbQuantizationConfig(
+            load_in_4bit=True,
+            bnb_4bit_compute_dtype=torch.bfloat16,
+            bnb_4bit_use_double_quant=True,
+            bnb_4bit_quant_type="nf4",
+            llm_int8_skip_modules=None,
+        )
+        model = transformers.AutoModelForCausalLM.from_pretrained(
+            f"outputs/{CHECKPOINT}/", quantization_config=quantization_config
+        )
+    elif quantization == "bitsandbytes8bit":
+        model = transformers.AutoModelForCausalLM.from_pretrained(
+            f"outputs/{CHECKPOINT}/", device_map="auto", load_in_8bit=True
+        )
+    estimate_model_size(model)
     tokenizer = transformers.AutoTokenizer.from_pretrained(f"outputs/{CHECKPOINT}/")
     return (model, tokenizer)
 
@@ -48,7 +72,8 @@ def predict_test():
 def predict(batch_size=256):
     prompts = [f"{i:07}$" for i in range(NROWS)]
     model, tokenizer = get_model_and_tokenizer()
-    model = model.to(device)
+    if quantization is None:
+        model = model.to(device)
     max_new_tokens = MAX_LENGTH + 10
     predictions = []
     with open(f"data/{CHECKPOINT}.txt", "w") as f:
@@ -108,7 +133,7 @@ def eval_accuracy(predictions=None):
 
     # Eval using accuracy
     accuracy = compute_accuracy(references, predictions)
-    print(f"Accuracy:\n{accuracy}")
+    logger.info(f"Accuracy:\n{accuracy}")
     return accuracy
 
 
@@ -147,14 +172,14 @@ def eval_avg_error(predictions=None):
 
     # Eval using avg error
     error_mean = compute_error_mean(references, predictions)
-    print(f"Average absolute error:\n{error_mean}")
+    logger.info(f"Average absolute error:\n{error_mean}")
     return error_mean
 
 
 if __name__ == "__main__":
-    # predictions = predict()
-    # eval_avg_error(predictions)
-    # eval_accuracy(predictions)
+    predictions = predict()
+    eval_avg_error(predictions)
+    eval_accuracy(predictions)
 
-    eval_accuracy()
+    # eval_accuracy()
     # eval_avg_error()

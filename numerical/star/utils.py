@@ -1,8 +1,10 @@
 import pandas as pd
 import numpy as np
-
+import logging
 from random import sample
 
+logging.basicConfig(level=logging.INFO, format="%(name)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
 # patterns = {
 #     "charge": "{:03d}",
 #     "clus": "{:04d}",
@@ -108,17 +110,9 @@ def sample_data(processor, size):
 
 def estimate_model_size(model):
     """Estimate Pytorch model size in MB"""
-    param_size = 0
-    for param in model.parameters():
-        param_size += param.nelement() * param.element_size()
-    buffer_size = 0
-    for buffer in model.buffers():
-        buffer_size += buffer.nelement() * buffer.element_size()
-    size_all_mb = (param_size + buffer_size) / 1024**2
-    print(f"Parameter size is {param_size / 1024**2:.2f}MB")
-    print(f"Buffer size is {buffer_size / 1024**2:.2f}MB")
-    print(f"Model size is {size_all_mb:.2f}MB")
-    return size_all_mb
+    size_in_mb = model.get_memory_footprint() / 1024**2
+    logger.info(f"Model size is {size_in_mb:.2f}MB")
+    return size_in_mb
 
 
 if __name__ == "__main__":

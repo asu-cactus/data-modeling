@@ -21,14 +21,26 @@ def get_size_in_mb(object):
     return sys.getsizeof(object) / 1024**2
 
 
-def zstd_compress(df):
+def zstd_compress(df, select_five=False):
+    if select_five:
+        col_names = ["dst", "hist", "enumber", "etime", "rnumber"]
+        # columns = df[col_names].to_records(index=True).tobytes()
+        columns = np.arange(2173762).astype(np.int32)
+        original_size = get_size_in_mb(columns)
+        compressed = zstd.compress(columns)
+        compress_size = get_size_in_mb(compressed)
+        print(
+            f"original size: {original_size * 1024:.2f}KB, compressed size: {compress_size * 1024:.2f}KB, "
+            f"compression ratio: {original_size / compress_size:.3f}"
+        )
+        return
     for col_name in df.columns:
         column = df[[col_name]].to_records(index=False).tobytes()
         original_size = get_size_in_mb(column)
         compressed = zstd.compress(column)
         compress_size = get_size_in_mb(compressed)
         print(
-            f"Column {col_name}: compressed size: {compress_size * 1000:.2f}KB, "
+            f"Column {col_name}: compressed size: {compress_size * 1024:.2f}KB, "
             f"compression ratio: {original_size / compress_size:.3f}"
         )
 
@@ -102,7 +114,7 @@ def zfpy_compress(df, mode):
             )
 
 
-def sz_compress(df, mode):
+def sz_compress(df, mode, select_five=False):
     # mode_convert = {
     #     "ABS": 0,
     #     "REL": 1,
@@ -134,6 +146,32 @@ def sz_compress(df, mode):
         #     result["log_abs_error"].append(np.log(avg_abs_error))
         # pd.DataFrame.from_dict(result).to_csv("outputs/rel.csv", index=False)
 
+        if select_five:
+            is_transpose = True
+            col_names = ["dst", "hist", "enumber", "etime", "rnumber"]
+            if is_transpose:
+                columns = df[col_names].to_numpy().transpose()
+                index = np.arange(columns.shape[1]).astype(columns.dtype).reshape(1, -1)
+                columns = np.concatenate((index, columns), axis=0)
+
+                original_size = get_size_in_mb(columns)
+            else:
+                columns = df[col_names].to_numpy()
+                index = np.arange(columns.shape[0]).astype(columns.dtype).reshape(-1, 1)
+                columns = np.concatenate((index, columns), axis=1)
+                original_size = get_size_in_mb(df[col_names])
+
+            compressed, _ = sz.compress(columns, 1, 0, 1e-7, 0)
+            compress_size = get_size_in_mb(compressed)
+            avg_abs_error = abs_error(
+                columns, sz.decompress(compressed, columns.shape, columns.dtype)
+            )
+            print(
+                f"Original size: {original_size * 1024:.2f}KB: compressed size: {compress_size * 1024:.2f}KB, "
+                f"compression ratio: {original_size / compress_size:.3f}, "
+                f"error: {avg_abs_error:.6f}"
+            )
+            return
         for col_name in df.columns:
             column = df[col_name].to_numpy()
             original_size = get_size_in_mb(df[col_name])
@@ -143,13 +181,13 @@ def sz_compress(df, mode):
                 column, sz.decompress(compressed, column.shape, column.dtype)
             )
             print(
-                f"Column {col_name}: compressed size: {compress_size * 1000:.2f}KB, "
+                f"Column {col_name}: compressed size: {compress_size * 1024:.2f}KB, "
                 f"compression ratio: {original_size / compress_size:.3f}, "
                 f"error: {avg_abs_error:.6f}"
             )
 
 
-def test_compression():
+def test_compression(select_five):
     names = {
         "charge": np.int32,
         "clus": np.int32,
@@ -178,11 +216,11 @@ def test_compression():
     # Measure size of original data frame and compressed data frame
     size_in_mb = sys.getsizeof(df) / 1024**2
     print(f"Before compression size: {size_in_mb:.2f}MB")
-    zstd_compress(df)
+    zstd_compress(df, select_five)
     # zfpy_compress(df, mode="fixed_accuracy")
 
-    sz_compress(df, mode="REL")
+    sz_compress(df, mode="REL", select_five=select_five)
 
 
 if __name__ == "__main__":
-    test_compression()
+    test_compression(select_five=True)
