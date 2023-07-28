@@ -9,7 +9,6 @@ from utils import names, USECOLS
 
 from collections import defaultdict
 import os
-import pickle
 
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"

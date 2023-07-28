@@ -10,7 +10,8 @@ logger = logging.getLogger(__name__)
 DATA_DIR = "data"
 # DATA_DIR = "/global/cfs/projectdirs/m1248/john/sdss"
 OUTPUT_DIR = "outputs"
-NROWS = 168646652
+NROWS = 1686466
+# NROWS = 168646652
 # Make directories
 Path.mkdir(Path(OUTPUT_DIR), exist_ok=True)
 
@@ -43,7 +44,10 @@ def load_data(return_ndarray=False):
     for col in COLS:
         with bz2.open(f"{DATA_DIR}/{col}.bz2", "rb") as f:
             data_bytes = f.read()
-        data.append(preprocess_func(np.frombuffer(data_bytes, dtype=np.float32)))
+        # For now, only read the first NROWS
+        data.append(
+            preprocess_func(np.frombuffer(data_bytes, dtype=np.float32)[:NROWS])
+        )
 
     # Create a dataframe
     data = np.stack(data, -1)
@@ -61,9 +65,8 @@ def load_data(return_ndarray=False):
         logger.info("Done processing dataframe to strings.")
 
         # Write data to file for inspection
-        data_sample = data[0:2000]
-        with open("data/ab_exp_sample.txt", "w") as f:
-            for sample in data_sample:
+        with open("data/ab_exp.txt", "w") as f:
+            for sample in data:
                 f.write(f"{sample['instruction']}{sample['output']}\n")
 
         logger.info("Done writing data to file.")
@@ -72,17 +75,9 @@ def load_data(return_ndarray=False):
 
 def estimate_model_size(model):
     """Estimate Pytorch model size in MB"""
-    param_size = 0
-    for param in model.parameters():
-        param_size += param.nelement() * param.element_size()
-    buffer_size = 0
-    for buffer in model.buffers():
-        buffer_size += buffer.nelement() * buffer.element_size()
-    size_all_mb = (param_size + buffer_size) / 1024**2
-    print(f"Parameter size is {param_size / 1024**2:.2f}MB")
-    print(f"Buffer size is {buffer_size / 1024**2:.2f}MB")
-    print(f"Model size is {size_all_mb:.2f}MB")
-    return size_all_mb
+    size_in_mb = model.get_memory_footprint() / 1024**2
+    print(f"Model size is {size_in_mb:.2f}MB")
+    return size_in_mb
 
 
 if __name__ == "__main__":

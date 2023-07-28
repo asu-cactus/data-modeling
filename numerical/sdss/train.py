@@ -42,8 +42,8 @@ class ModelArguments:
     initializer_range: float = field(default=0.02)
     rms_norm_eps: float = field(default=1e-06)
     use_cache: bool = field(default=True)
-    # pad_token_id: int = field(default=14)
-    # eos_token_id: int = field(default=15)
+    # eos_token_id: int = field(default=14)
+    # pad_token_id: int = field(default=15)
     tie_word_embeddings: bool = field(default=False)
 
 
@@ -228,22 +228,6 @@ def train():
     parser = transformers.HfArgumentParser((ModelArguments, TrainingArguments))
     model_args, training_args = parser.parse_args_into_dataclasses()
 
-    tokenizer = transformers.PreTrainedTokenizerFast(
-        model_max_length=training_args.model_max_length,
-        padding_side="right",
-        tokenizer_file="tokenizer/sdss_tokenizer.json",
-    )
-
-    special_tokens_dict = dict()
-    if tokenizer.pad_token is None:
-        special_tokens_dict["pad_token"] = DEFAULT_PAD_TOKEN
-    # if tokenizer.bos_token is None:
-    #     special_tokens_dict["bos_token"] = DEFAULT_BOS_TOKEN
-    if tokenizer.eos_token is None:
-        special_tokens_dict["eos_token"] = DEFAULT_EOS_TOKEN
-
-    data_module = make_supervised_data_module(tokenizer=tokenizer)
-
     model = transformers.AutoModelForCausalLM.from_config(
         transformers.LlamaConfig(
             vocab_size=model_args.vocab_size,
@@ -262,12 +246,30 @@ def train():
             tie_word_embeddings=model_args.tie_word_embeddings,
         )
     )
+
+    tokenizer = transformers.PreTrainedTokenizerFast(
+        model_max_length=training_args.model_max_length,
+        padding_side="right",
+        tokenizer_file="tokenizer/sdss_tokenizer.json",
+    )
+
+    special_tokens_dict = dict()
+    if tokenizer.pad_token is None:
+        special_tokens_dict["pad_token"] = DEFAULT_PAD_TOKEN
+    # if tokenizer.bos_token is None:
+    #     special_tokens_dict["bos_token"] = DEFAULT_BOS_TOKEN
+    if tokenizer.eos_token is None:
+        special_tokens_dict["eos_token"] = DEFAULT_EOS_TOKEN
+
     smart_tokenizer_and_embedding_resize(
         special_tokens_dict=special_tokens_dict,
         tokenizer=tokenizer,
         model=model,
     )
+
     estimate_model_size(model)
+
+    data_module = make_supervised_data_module(tokenizer=tokenizer)
 
     trainer = transformers.Trainer(
         model=model,
