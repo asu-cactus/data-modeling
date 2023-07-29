@@ -7,6 +7,7 @@ import os
 
 logging.basicConfig(level=logging.INFO, format="%(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
+os.environ["NUMEXPR_MAX_THREADS"] = "46"
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 
@@ -42,7 +43,7 @@ class ModelArguments:
     use_cache: bool = field(default=True)
     # pad_token_id: int = field(default=19)
     # eos_token_id: int = field(default=20)
-    tie_word_embeddings: bool = field(default=False)
+    tie_word_embeddings: bool = field(default=True)
 
 
 @dataclass

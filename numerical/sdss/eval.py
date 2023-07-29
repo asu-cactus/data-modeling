@@ -3,14 +3,14 @@ import torch
 import numpy as np
 
 from train import MAX_LENGTH
-from utils import names, COLS, NROWS, DATA_DIR, OUTPUT_DIR, load_data
+from utils import COLS, NROWS, DATA_DIR, OUTPUT_DIR, load_data
 
 import os
 
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 
-CHECKPOINT = "checkpoint-110396"
+CHECKPOINT = "checkpoint-927261"
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
@@ -43,11 +43,11 @@ def predict_test():
 def parse_pred_lines(lines: list[str]):
     outputs = np.empty((len(lines), len(COLS)), dtype=np.int32)
     for i, line in enumerate(lines):
-        num_strs = line.split("$")[1].split(",")
+        num_strs = line.split("$", maxsplit=1)[1].replace(" ", "").split(",")
         nums = [int(num_str) for num_str in num_strs]
         if len(nums) != len(COLS):
             nums += [0] * (len(COLS) - len(nums))
-        outputs[i] = nums
+            outputs[i] = nums
     return outputs
 
 
@@ -70,18 +70,10 @@ def predict(batch_size=256):
     return predictions
 
 
-# def parse_pred_line(line: str):
-#     d = {}
-#     for name in names:
-#         segs = line.split(f"{name}:", maxsplit=1)
-#         d[name] = segs[1].split(",", maxsplit=1)[0] if len(segs) > 1 else ""
-#     return d
-
-
 def compute_accuracy(references: np.ndarray, predictions: np.ndarray):
     diff = references - predictions
     n_correct = np.sum(diff == 0, axis=0)
-    accuracy = {name: n / NROWS for name, n in zip(names, n_correct)}
+    accuracy = {name: n / NROWS for name, n in zip(COLS, n_correct)}
     accuracy["all"] = sum(list(accuracy.values())) / len(accuracy)
     return accuracy
 
@@ -94,7 +86,7 @@ def compute_accuracy(references: np.ndarray, predictions: np.ndarray):
 #     error_sum = defaultdict(float)
 #     for ref, pred in zip(references.values, predictions):
 #         pred = parse_pred_line(pred)
-#         for i, name in enumerate(names):
+#         for i, name in enumerate(COLS):
 #             try:
 #                 pred_int = int(pred[name])
 #             except ValueError:
@@ -129,7 +121,7 @@ def eval_accuracy(predictions=None):
 #         "data/star2000.csv.gz",
 #         header=None,
 #         usecols=USECOLS,
-#         names=list(names),
+#         names=list(COLS),
 #         dtype=names,
 #     )
 #     # Hardcoded: convert all to integer!
