@@ -1,0 +1,64 @@
+{
+    "version": "1.0",
+    "truncation": null,
+    "padding": null,
+    "added_tokens": [],
+    "normalizer": null,
+    "pre_tokenizer": null,
+    "post_processor": null,
+    "decoder": null,
+    "model": {
+        "type": "Unigram",
+        "unk_id": null,
+        "vocab": [
+            [
+                "0",
+                0
+            ],
+            [
+                "1",
+                0
+            ],
+            [
+                "2",
+                0
+            ],
+            [
+                "3",
+                0
+            ],
+            [
+                "4",
+                0
+            ],
+            [
+                "5",
+                0
+            ],
+            [
+                "6",
+                0
+            ],
+            [
+                "7",
+                0
+            ],
+            [
+                "8",
+                0
+            ],
+            [
+                "9",
+                0
+            ],
+            [
+                ",",
+                0
+            ],
+            [
+                "$",
+                0
+            ]
+        ]
+    }
+}
