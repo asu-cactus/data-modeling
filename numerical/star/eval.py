@@ -3,7 +3,7 @@ import torch
 import pandas as pd
 import numpy as np
 from scipy import sparse
-from accelerate.utils import BnbQuantizationConfig
+from transformers import BitsAndBytesConfig
 
 from train import DEFAULT_PAD_TOKEN, DEFAULT_EOS_TOKEN, MAX_LENGTH
 from utils import names, USECOLS, estimate_model_size
@@ -20,7 +20,8 @@ os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 CHECKPOINT = "checkpoint-16984000"
 NROWS = 2173762
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-quantization = "bitsandbytes8bit"
+quantization = "bitsandbytes4bit"
+# quantization = None
 
 
 def get_model_and_tokenizer():
@@ -29,12 +30,11 @@ def get_model_and_tokenizer():
             f"outputs/{CHECKPOINT}/"
         )
     elif quantization == "bitsandbytes4bit":
-        quantization_config = BnbQuantizationConfig(
+        quantization_config = BitsAndBytesConfig(
             load_in_4bit=True,
             bnb_4bit_compute_dtype=torch.bfloat16,
             bnb_4bit_use_double_quant=True,
             bnb_4bit_quant_type="nf4",
-            llm_int8_skip_modules=None,
         )
         model = transformers.AutoModelForCausalLM.from_pretrained(
             f"outputs/{CHECKPOINT}/", quantization_config=quantization_config
@@ -120,8 +120,14 @@ def compute_accuracy(references, predictions):
     accuracy = {name: n / NROWS for name, n in n_correct.items()}
     accuracy["all"] = sum(list(accuracy.values())) / len(accuracy)
     # Save auxilary structure
-    aux_structure_sparse = sparse.csr_matrix(aux_structure)
+    aux_structure_sparse = sparse.csc_matrix(aux_structure)
     sparse.save_npz(f"data/{CHECKPOINT}-aux.npz", aux_structure_sparse)
+    aux_size_in_kb = (
+        aux_structure_sparse.data.nbytes
+        + aux_structure_sparse.indptr.nbytes
+        + aux_structure_sparse.indices.nbytes
+    ) / 1024
+    logger.info(f"{aux_size_in_kb}KB")
     return accuracy
 
 
