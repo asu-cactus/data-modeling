@@ -187,7 +187,7 @@ def sz_compress(df, mode, select_five=False):
             )
 
 
-def test_compression(select_five):
+def test_compression(select_five, is_shuffle=False):
     names = {
         "charge": np.int32,
         "clus": np.int32,
@@ -210,6 +210,9 @@ def test_compression(select_five):
         dtype=names,
     )
 
+    if is_shuffle:
+        df = df.sample(frac=1).reset_index(drop=True)
+
     # Convert data frame to int32 and add index column
     # df = df.astype(np.int32)
 
@@ -223,4 +226,7 @@ def test_compression(select_five):
 
 
 if __name__ == "__main__":
-    test_compression(select_five=True)
+    test_compression(
+        select_five=False,
+        is_shuffle=False,
+    )

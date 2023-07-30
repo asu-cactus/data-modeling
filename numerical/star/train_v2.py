@@ -7,7 +7,7 @@ import os
 
 logging.basicConfig(level=logging.INFO, format="%(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
-os.environ["NUMEXPR_MAX_THREADS"] = "46"
+os.environ["NUMEXPR_MAX_THREADS"] = "32"
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 
@@ -26,6 +26,8 @@ DEFAULT_EOS_TOKEN = "</s>"
 MAX_LENGTH = 45
 NGPU = 2
 NROWS = 2173762
+
+is_shuffle_row = False
 
 
 @dataclass
@@ -58,7 +60,7 @@ class TrainingArguments(transformers.TrainingArguments):
     # learning_rate: float = field(default=2e-4)
     # lr_scheduler_type: str = field(default="linear")
     # Batch size and epochs
-    per_device_train_batch_size: int = field(default=256)
+    per_device_train_batch_size: int = field(default=512)
     num_train_epochs: float = field(default=4000.0)
     # Logging and saving
     logging_strategy: str = field(default="epoch")
@@ -181,7 +183,7 @@ class SupervisedDataset(Dataset):
         super(SupervisedDataset, self).__init__()
         logger.info("Loading data...")
         # list_data_dict = utils.jload(data_path)
-        list_data_dict = load_data()
+        list_data_dict = load_data(is_shuffle=is_shuffle_row)
 
         logger.info("Formatting inputs...")
         sources = [example["instruction"] for example in list_data_dict]

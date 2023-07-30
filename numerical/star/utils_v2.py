@@ -8,16 +8,6 @@ logging.basicConfig(level=logging.INFO, format="%(name)s - %(levelname)s - %(mes
 logger = logging.getLogger(__name__)
 
 
-USECOLS = [2, 3, 4, 5, 6]
-names = {
-    "dst": np.int32,
-    "hist": np.int32,
-    "enumber": np.int32,
-    "etime": np.float64,
-    "rnumber": np.int32,
-}
-
-
 def _row_to_dict(args):
     idx, row = args
     patterns = [
@@ -32,7 +22,15 @@ def _row_to_dict(args):
     return {"instruction": f"{idx:07d}$", "output": output}
 
 
-def load_data():
+def load_data(is_shuffle=False):
+    USECOLS = [2, 3, 4, 5, 6]
+    names = {
+        "dst": np.int32,
+        "hist": np.int32,
+        "enumber": np.int32,
+        "etime": np.float64,
+        "rnumber": np.int32,
+    }
     data = pd.read_csv(
         "data/star2000.csv.gz",
         header=None,
@@ -40,6 +38,9 @@ def load_data():
         names=list(names),
         dtype=names,
     )
+    if is_shuffle:
+        data = data.sample(frac=1, random_state=42)
+    data = data[["enumber", "rnumber", "etime", "dst", "hist"]]
     data = data.to_numpy().astype(np.int32)
 
     with mp.Pool(mp.cpu_count() - 2) as pool:
