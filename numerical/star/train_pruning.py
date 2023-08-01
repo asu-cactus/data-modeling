@@ -45,14 +45,14 @@ class ModelArguments:
     use_cache: bool = field(default=True)
     # pad_token_id: int = field(default=19)
     # eos_token_id: int = field(default=20)
-    tie_word_embeddings: bool = field(default=False)
+    tie_word_embeddings: bool = field(default=True)
 
 
 @dataclass
 class TrainingArguments(transformers.TrainingArguments):
     cache_dir: str = field(default="cache")
     model_max_length: int = field(default=MAX_LENGTH)
-    output_dir: str = field(default="outputs")
+    output_dir: str = field(default="outputs_pruning")
     dataloader_num_workers: int = field(default=16)
     disable_tqdm: bool = field(default=True)
     # # Optimization
@@ -61,7 +61,7 @@ class TrainingArguments(transformers.TrainingArguments):
     # lr_scheduler_type: str = field(default="linear")
     # Batch size and epochs
     per_device_train_batch_size: int = field(default=512)
-    num_train_epochs: float = field(default=4000.0)
+    num_train_epochs: float = field(default=10.0)
     # Logging and saving
     logging_strategy: str = field(default="epoch")
     save_strategy: str = field(default="epoch")
@@ -184,6 +184,7 @@ class SupervisedDataset(Dataset):
         logger.info("Loading data...")
         # list_data_dict = utils.jload(data_path)
         list_data_dict = load_data(is_shuffle=is_shuffle_row)
+        list_data_dict = list_data_dict[:100]
 
         logger.info("Formatting inputs...")
         sources = [example["instruction"] for example in list_data_dict]
@@ -287,7 +288,7 @@ def train(is_prune):
         pruning_config = WeightPruningConfig(
             pruning_type="magnitude",
             start_step=0,
-            end_step=10000,
+            end_step=9,
             target_sparsity=0.2,
             pruning_scope="local",
         )

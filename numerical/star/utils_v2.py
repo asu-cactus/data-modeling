@@ -7,16 +7,27 @@ import logging
 logging.basicConfig(level=logging.INFO, format="%(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
+# COLS = ["enumber", "etime", "rnumber", "dst", "hist"]
+# patterns = [
+#     "{:05d}",
+#     "{:08d}",
+#     "{:07d}",
+#     "{:06d}",
+#     "{:06d}",
+# ]
+
+COLS = ["dst", "hist", "enumber", "etime", "rnumber"]
+patterns = [
+    "{:06d}",
+    "{:06d}",
+    "{:05d}",
+    "{:08d}",
+    "{:07d}",
+]
+
 
 def _row_to_dict(args):
     idx, row = args
-    patterns = [
-        "{:06d}",
-        "{:06d}",
-        "{:05d}",
-        "{:08d}",
-        "{:07d}",
-    ]
     features = [pattern.format(value) for value, pattern in zip(row, patterns)]
     output = ",".join(features)
     return {"instruction": f"{idx:07d}$", "output": output}
@@ -40,7 +51,8 @@ def load_data(is_shuffle=False):
     )
     if is_shuffle:
         data = data.sample(frac=1, random_state=42)
-    data = data[["enumber", "rnumber", "etime", "dst", "hist"]]
+    # Reorder columns
+    data = data[COLS]
     data = data.to_numpy().astype(np.int32)
 
     with mp.Pool(mp.cpu_count() - 2) as pool:
