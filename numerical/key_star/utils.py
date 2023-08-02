@@ -29,7 +29,7 @@ patterns = [
 def _row_to_dict(row):
     instruction = f"{row[0]:05d},{row[1]:08d}$"
     output = ",".join(
-        [pattern.format(value) for value, pattern in zip(row[2:], patterns)]
+        [pattern.format(value) for value, pattern in zip(row[2:], patterns[2:])]
     )
     return {"instruction": instruction, "output": output}
 

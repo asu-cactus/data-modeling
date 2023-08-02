@@ -23,11 +23,13 @@ IGNORE_INDEX = -100
 DEFAULT_PAD_TOKEN = "[PAD]"
 # DEFAULT_BOS_TOKEN = "<s>"
 DEFAULT_EOS_TOKEN = "</s>"
-MAX_LENGTH = 29
 NGPU = 2
 NROWS = 2173762
 
 is_shuffle_row = False
+
+with open("data/star2000.txt", "r") as f:
+    MAX_LENGTH = len(f.readline())
 
 
 @dataclass
