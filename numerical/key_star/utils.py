@@ -26,11 +26,12 @@ patterns = [
 # ]
 
 
-def _row_to_dict(args):
-    idx, row = args
-    features = [pattern.format(value) for value, pattern in zip(row, patterns)]
-    output = ",".join(features)
-    return {"instruction": f"{idx:07d}$", "output": output}
+def _row_to_dict(row):
+    instruction = f"{row[0]:05d},{row[1]:08d}$"
+    output = ",".join(
+        [pattern.format(value) for value, pattern in zip(row[2:], patterns)]
+    )
+    return {"instruction": instruction, "output": output}
 
 
 def load_data(is_shuffle=False):
@@ -56,15 +57,10 @@ def load_data(is_shuffle=False):
     data = data.to_numpy().astype(np.int32)
 
     with mp.Pool(mp.cpu_count() - 2) as pool:
-        data = pool.imap(_row_to_dict, [(i, row) for i, row in enumerate(data)], 100000)
+        data = pool.imap(_row_to_dict, [row for row in data], 100000)
         data = [d for d in data]
-    # with open("data/star2000.txt", "w") as f:
-    #     for idx, row in data.iterrows():
-    #         string = self._row_to_string(idx, row)
-    #         f.write(f"{string}\n")
-    #         lines.append(string)
 
-    with open("data/star2000_v2.txt", "w") as f:
+    with open("data/star2000.txt", "w") as f:
         for sample in data:
             f.write(f"{sample['instruction']}{sample['output']}\n")
     return data

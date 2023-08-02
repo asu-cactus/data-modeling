@@ -330,4 +330,4 @@ def continue_train(checkpoint: str):
 
 
 if __name__ == "__main__":
-    train(is_prune=True)
+    train(is_prune=False)

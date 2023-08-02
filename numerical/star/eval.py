@@ -8,6 +8,7 @@ from transformers import BitsAndBytesConfig
 from train import DEFAULT_PAD_TOKEN, DEFAULT_EOS_TOKEN, MAX_LENGTH
 from utils import names, USECOLS, estimate_model_size
 
+import time
 from collections import defaultdict
 import os
 import logging
@@ -41,7 +42,7 @@ def get_model_and_tokenizer():
         )
     elif quantization == "bitsandbytes8bit":
         model = transformers.AutoModelForCausalLM.from_pretrained(
-            f"outputs/{CHECKPOINT}/", device_map="auto", load_in_8bit=True
+            f"outputs/{CHECKPOINT}/", device_map=0, load_in_8bit=True
         )
     estimate_model_size(model)
     tokenizer = transformers.AutoTokenizer.from_pretrained(f"outputs/{CHECKPOINT}/")
@@ -56,17 +57,27 @@ def load_lines(path):
     return lines
 
 
-def predict_test():
-    prompts = ["0000000$", "0000001$", "0000002$", "0000003$"]
+def predict_test(batch_size=1000):
+    test_rows = 10000
+    prompts = [f"{i:07}$" for i in range(test_rows)]
     model, tokenizer = get_model_and_tokenizer()
-
-    inputs = tokenizer(prompts, return_tensors="pt").input_ids
-
+    if quantization is None:
+        model = model.to(device)
     max_new_tokens = MAX_LENGTH + 10
-    outputs = model.generate(inputs, max_new_tokens=max_new_tokens, do_sample=False)
-    predictions = tokenizer.batch_decode(outputs, skip_special_tokens=False)
-    for pred in predictions:
-        print(pred)
+    start_time = time.time()
+    for start_idx in range(0, test_rows, batch_size):
+        batch = prompts[start_idx : start_idx + batch_size]
+        inputs = tokenizer(batch, return_tensors="pt").input_ids.to(device)
+        outputs = model.generate(inputs, max_new_tokens=max_new_tokens, do_sample=False)
+        outputs = tokenizer.batch_decode(outputs, skip_special_tokens=False)
+        outputs = [
+            text.replace(" ", "")
+            .replace(DEFAULT_EOS_TOKEN, "")
+            .replace(DEFAULT_PAD_TOKEN, "")
+            for text in outputs
+        ]
+    end_time = time.time()
+    print(f"Time taken: {end_time - start_time} seconds")
 
 
 def predict(batch_size=256):
@@ -183,9 +194,11 @@ def eval_avg_error(predictions=None):
 
 
 if __name__ == "__main__":
-    predictions = predict()
-    eval_avg_error(predictions)
-    eval_accuracy(predictions)
+    # predictions = predict()
+    # eval_avg_error(predictions)
+    # eval_accuracy(predictions)
 
     # eval_accuracy()
     # eval_avg_error()
+
+    predict_test()

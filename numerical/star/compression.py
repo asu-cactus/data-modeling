@@ -24,8 +24,8 @@ def get_size_in_mb(object):
 def zstd_compress(df, select_five=False):
     if select_five:
         col_names = ["dst", "hist", "enumber", "etime", "rnumber"]
-        # columns = df[col_names].to_records(index=True).tobytes()
-        columns = np.arange(2173762).astype(np.int32)
+        columns = df[col_names].to_records(index=True).tobytes()
+        # columns = np.arange(2173762).astype(np.int32)
         original_size = get_size_in_mb(columns)
         compressed = zstd.compress(columns)
         compress_size = get_size_in_mb(compressed)
