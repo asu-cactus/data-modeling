@@ -5,6 +5,10 @@ from dataclasses import dataclass, field
 from typing import Sequence
 import os
 
+logging.basicConfig(level=logging.INFO, format="%(name)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
+
+os.environ["NUMEXPR_MAX_THREADS"] = "32"
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 
@@ -12,7 +16,8 @@ import torch
 import transformers
 import utils
 from torch.utils.data import Dataset
-
+from optimum.intel import INCTrainer
+from neural_compressor import WeightPruningConfig, DistillationConfig
 
 IGNORE_INDEX = -100
 DEFAULT_PAD_TOKEN = "[PAD]"
@@ -31,7 +36,7 @@ PROMPT_DICT = {
 @dataclass
 class ModelArguments:
     model_name_or_path: str = field(default="models")
-    vocab_size: int = field(default=21)
+    vocab_size: int = field(default=17)
     hidden_size: int = field(default=128)  # was 512
     intermediate_size: int = field(default=256)  # was 1024
     num_hidden_layers: int = field(default=4)  # was 4
@@ -41,8 +46,8 @@ class ModelArguments:
     initializer_range: float = field(default=0.02)
     rms_norm_eps: float = field(default=1e-06)
     use_cache: bool = field(default=True)
-    pad_token_id: int = field(default=19)
-    eos_token_id: int = field(default=20)
+    # pad_token_id: int = field(default=19)
+    # eos_token_id: int = field(default=20)
     tie_word_embeddings: bool = field(default=False)
 
 
@@ -157,11 +162,11 @@ class SupervisedDataset(Dataset):
 
     def __init__(self, tokenizer: transformers.PreTrainedTokenizer):
         super(SupervisedDataset, self).__init__()
-        logging.warning("Loading data...")
+        logger.info("Loading data...")
         # list_data_dict = utils.jload(data_path)
         list_data_dict = utils.DataProcessor().data
 
-        logging.warning("Formatting inputs...")
+        logger.info("Formatting inputs...")
         prompt_input, prompt_no_input = (
             PROMPT_DICT["prompt_input"],
             PROMPT_DICT["prompt_no_input"],
@@ -176,7 +181,7 @@ class SupervisedDataset(Dataset):
             f"{example['output']}{tokenizer.eos_token}" for example in list_data_dict
         ]
 
-        logging.warning("Tokenizing inputs... This may take some time...")
+        logger.info("Tokenizing inputs... This may take some time...")
         data_dict = preprocess(sources, targets, tokenizer)
 
         self.input_ids = data_dict["input_ids"]
@@ -237,9 +242,11 @@ def make_supervised_data_module(tokenizer: transformers.PreTrainedTokenizer) -> 
 #     tokenizer.save(f'{save_dir}/tokenizer.json')
 
 
-def train():
+def train(train_mode):
     parser = transformers.HfArgumentParser((ModelArguments, TrainingArguments))
     model_args, training_args = parser.parse_args_into_dataclasses()
+    if train_mode == "distillation":
+        model_args.num_hidden_layers = 3
 
     model = transformers.AutoModelForCausalLM.from_config(
         transformers.LlamaConfig(
@@ -284,13 +291,45 @@ def train():
 
     data_module = make_supervised_data_module(tokenizer=tokenizer)
 
-    trainer = transformers.Trainer(
-        model=model,
-        tokenizer=tokenizer,
-        args=training_args,
-        optimizers=get_optimizer(model, training_args),
-        **data_module,
-    )
+    match train_mode:
+        case "pruning":
+            pruning_config = WeightPruningConfig(
+                pruning_type="magnitude",
+                start_step=0,
+                end_step=10000,
+                target_sparsity=0.2,
+                pruning_scope="local",
+            )
+            trainer = INCTrainer(
+                model=model,
+                pruning_config=pruning_config,
+                tokenizer=tokenizer,
+                args=training_args,
+                optimizers=get_optimizer(model, training_args),
+                **data_module,
+            )
+        case "distillation":
+            logger.info("Loading teacher model...")
+            teacher_model = transformers.AutoModelForCausalLM.from_pretrained(
+                "checkpoints/checkpoint-16984000"
+            )
+            distillation_config = DistillationConfig(teacher_model=teacher_model)
+            trainer = INCTrainer(
+                model=model,
+                tokenizer=tokenizer,
+                distillation_config=distillation_config,
+                args=training_args,
+                optimizers=get_optimizer(model, training_args),
+                **data_module,
+            )
+        case _:
+            trainer = transformers.Trainer(
+                model=model,
+                tokenizer=tokenizer,
+                args=training_args,
+                optimizers=get_optimizer(model, training_args),
+                **data_module,
+            )
     trainer.train()
     trainer.save_state()
 
@@ -314,4 +353,4 @@ def continue_train(checkpoint: str):
 
 
 if __name__ == "__main__":
-    train()
+    train(train_mode="distillation")

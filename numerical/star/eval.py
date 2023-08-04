@@ -1,13 +1,14 @@
-import transformers
 import torch
 import pandas as pd
 import numpy as np
 from scipy import sparse
-from transformers import BitsAndBytesConfig
+from datasets import Dataset
+from transformers import BitsAndBytesConfig, AutoTokenizer, AutoModelForCausalLM
 
 from train import DEFAULT_PAD_TOKEN, DEFAULT_EOS_TOKEN, MAX_LENGTH
 from utils import names, USECOLS, estimate_model_size
 
+# import pdb
 import time
 from collections import defaultdict
 import os
@@ -18,43 +19,134 @@ logger = logging.getLogger(__name__)
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 
-CHECKPOINT = "checkpoint-16984000"
+OUPUT_DIR = "outputs"
+CHECKPOINT = "checkpoint-1919192"
 NROWS = 2173762
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-quantization = "bitsandbytes4bit"
-# quantization = None
+device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+# quantization = "inc"
+quantization = None
+
+
+def create_ort_quantized_model():
+    from optimum.onnxruntime import ORTQuantizer, ORTModelForCausalLM
+    from optimum.onnxruntime.configuration import (
+        AutoQuantizationConfig,
+        AutoCalibrationConfig,
+    )
+
+    onnx_model = ORTModelForCausalLM.from_pretrained(
+        f"{OUPUT_DIR}/{CHECKPOINT}/", export=False
+    )
+
+    tokenizer = AutoTokenizer.from_pretrained(f"{OUPUT_DIR}/{CHECKPOINT}/")
+    quantizer = ORTQuantizer.from_pretrained(onnx_model)
+    qconfig = AutoQuantizationConfig.arm64(is_static=True, per_channel=False)
+
+    calibration_dataset = Dataset.from_dict(
+        {"prompt": [f"{i:07}$" for i in range(100)]}
+    ).map(lambda ex: tokenizer(ex["prompt"]), batched=True)
+
+    # pdb.set_trace()
+    calibration_config = AutoCalibrationConfig.minmax(calibration_dataset)
+    ranges = quantizer.fit(
+        dataset=calibration_dataset,
+        calibration_config=calibration_config,
+        operators_to_quantize=qconfig.operators_to_quantize,
+    )
+    logger.info(f"Starting quantization...")
+    model_quantized_path = quantizer.quantize(
+        save_dir=f"{OUPUT_DIR}/quantized/",
+        calibration_tensors_range=ranges,
+        quantization_config=qconfig,
+    )
+    logger.info(f"Quantized model saved to {model_quantized_path}")
+    return model_quantized_path
+
+
+def create_inc_quantized_model():
+    from neural_compressor.config import (
+        PostTrainingQuantConfig,
+        AccuracyCriterion,
+        TuningCriterion,
+    )
+    from optimum.intel import INCQuantizer
+
+    model = AutoModelForCausalLM.from_pretrained(f"{OUPUT_DIR}/{CHECKPOINT}/")
+    tokenizer = AutoTokenizer.from_pretrained(f"{OUPUT_DIR}/{CHECKPOINT}/")
+
+    # Set up quantization config, TODO: Distributed Acuracy-aware Tuning.
+    recipes = {
+        "smooth_quant": True,
+        "smooth_quant_args": {"alpha": 0.5, "folding": True},
+    }
+    # Set the accepted accuracy loss to 5%
+    accuracy_criterion = AccuracyCriterion(tolerable_loss=0.5)
+    # Set the maximum number of trials to 10
+    tuning_criterion = TuningCriterion(max_trials=100)
+    quantization_config = PostTrainingQuantConfig(
+        approach="static",
+        backend="ipex",
+        recipes=recipes,
+        accuracy_criterion=accuracy_criterion,
+        tuning_criterion=tuning_criterion,
+    )
+
+    calibration_dataset = (
+        Dataset.from_dict({"prompt": [f"{i:07}$" for i in range(50)]})
+        .map(
+            lambda ex: tokenizer(ex["prompt"], return_token_type_ids=False),
+            batched=True,
+        )
+        .remove_columns("prompt")
+    )
+    # import pdb
+
+    # pdb.set_trace()
+
+    quantizer = INCQuantizer.from_pretrained(model)
+    quantizer.quantize(
+        quantization_config=quantization_config,
+        calibration_dataset=calibration_dataset,
+        save_directory=f"{CHECKPOINT}/inc_quantized/",
+    )
+    exit()
+    return (model, tokenizer)
 
 
 def get_model_and_tokenizer():
-    if quantization == None:
-        model = transformers.AutoModelForCausalLM.from_pretrained(
-            f"outputs/{CHECKPOINT}/"
-        )
-    elif quantization == "bitsandbytes4bit":
-        quantization_config = BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_compute_dtype=torch.bfloat16,
-            bnb_4bit_use_double_quant=True,
-            bnb_4bit_quant_type="nf4",
-        )
-        model = transformers.AutoModelForCausalLM.from_pretrained(
-            f"outputs/{CHECKPOINT}/", quantization_config=quantization_config
-        )
-    elif quantization == "bitsandbytes8bit":
-        model = transformers.AutoModelForCausalLM.from_pretrained(
-            f"outputs/{CHECKPOINT}/", device_map=0, load_in_8bit=True
-        )
+    tokenizer = None
+    match quantization:
+        case "bitsandbytes4bit":
+            quantization_config = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_compute_dtype=torch.bfloat16,
+                bnb_4bit_use_double_quant=True,
+                bnb_4bit_quant_type="nf4",
+            )
+            model = AutoModelForCausalLM.from_pretrained(
+                f"{OUPUT_DIR}/{CHECKPOINT}/", quantization_config=quantization_config
+            )
+
+        case "bitsandbytes8bit":
+            model = AutoModelForCausalLM.from_pretrained(
+                f"{OUPUT_DIR}/{CHECKPOINT}/", device_map=0, load_in_8bit=True
+            )
+        case "ort":
+            model_quantized_path = create_ort_quantized_model()
+            exit()
+        case "inc":
+            model, tokenizer = create_inc_quantized_model()
+        case _:
+            logger.info("Loading original model...")
+            model = AutoModelForCausalLM.from_pretrained(f"{OUPUT_DIR}/{CHECKPOINT}/")
     estimate_model_size(model)
-    tokenizer = transformers.AutoTokenizer.from_pretrained(f"outputs/{CHECKPOINT}/")
+    if tokenizer is None:
+        tokenizer = AutoTokenizer.from_pretrained(f"{OUPUT_DIR}/{CHECKPOINT}/")
     return (model, tokenizer)
 
 
 def load_lines(path):
-    lines = []
-    with open(path, "r") as f:
-        for line in f:
-            lines.append(line.strip())
-    return lines
+    return [line.strip() for line in open(path, "r")]
 
 
 def predict_test(batch_size=1000):
@@ -194,11 +286,7 @@ def eval_avg_error(predictions=None):
 
 
 if __name__ == "__main__":
-    # predictions = predict()
-    # eval_avg_error(predictions)
-    # eval_accuracy(predictions)
+    predictions = predict()
+    eval_accuracy(predictions)
 
-    # eval_accuracy()
-    # eval_avg_error()
-
-    predict_test()
+    # predict_test()

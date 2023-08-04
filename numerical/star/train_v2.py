@@ -52,7 +52,7 @@ class ModelArguments:
 class TrainingArguments(transformers.TrainingArguments):
     cache_dir: str = field(default="cache")
     model_max_length: int = field(default=MAX_LENGTH)
-    output_dir: str = field(default="outputs")
+    output_dir: str = field(default="outputs_v2")
     dataloader_num_workers: int = field(default=16)
     disable_tqdm: bool = field(default=True)
     # # Optimization
@@ -73,7 +73,7 @@ def get_optimizer(model, args: TrainingArguments, lr: float = 2e-4):
         [p for p in model.parameters() if p.requires_grad], lr=lr
     )
     num_training_steps = (
-        math.ceil(NROWS // (args.per_device_train_batch_size * NGPU))
+        math.ceil(NROWS / (args.per_device_train_batch_size * NGPU))
         * args.num_train_epochs
     )
     scheduler = transformers.get_cosine_schedule_with_warmup(

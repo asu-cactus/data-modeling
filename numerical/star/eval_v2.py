@@ -16,8 +16,9 @@ logger = logging.getLogger(__name__)
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 
-CHECKPOINT = "checkpoint-4209909"
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+OUTPUT_DIR = "outputs_v2"
+CHECKPOINT = "checkpoint-738804"
+device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
 # quantization = "bitsandbytes8bit"
 quantization = None
 
@@ -25,7 +26,7 @@ quantization = None
 def get_model_and_tokenizer():
     if quantization == None:
         model = transformers.AutoModelForCausalLM.from_pretrained(
-            f"outputs/{CHECKPOINT}/"
+            f"{OUTPUT_DIR}/{CHECKPOINT}/"
         )
     elif quantization == "bitsandbytes4bit":
         quantization_config = BitsAndBytesConfig(
@@ -35,17 +36,19 @@ def get_model_and_tokenizer():
             bnb_4bit_quant_type="nf4",
         )
         model = transformers.AutoModelForCausalLM.from_pretrained(
-            f"outputs/{CHECKPOINT}/", quantization_config=quantization_config
+            f"{OUTPUT_DIR}/{CHECKPOINT}/", quantization_config=quantization_config
         )
     elif quantization == "bitsandbytes8bit":
         model = transformers.AutoModelForCausalLM.from_pretrained(
-            f"outputs/{CHECKPOINT}/", device_map="auto", load_in_8bit=True
+            f"{OUTPUT_DIR}/{CHECKPOINT}/", device_map="auto", load_in_8bit=True
         )
     estimate_model_size(model)
 
-    # model.save_pretrained(f"outputs/{CHECKPOINT}-quantized/", from_pt=True)
+    # model.save_pretrained(f"{OUTPUT_DIR}/{CHECKPOINT}-quantized/", from_pt=True)
     # exit()
-    tokenizer = transformers.AutoTokenizer.from_pretrained(f"outputs/{CHECKPOINT}/")
+    tokenizer = transformers.AutoTokenizer.from_pretrained(
+        f"{OUTPUT_DIR}/{CHECKPOINT}/"
+    )
     return (model, tokenizer)
 
 

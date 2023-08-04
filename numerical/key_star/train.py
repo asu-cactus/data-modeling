@@ -16,7 +16,7 @@ import transformers
 from utils import load_data, estimate_model_size
 from torch.utils.data import Dataset
 from optimum.intel import INCTrainer
-from neural_compressor import WeightPruningConfig
+from neural_compressor import WeightPruningConfig, DistillationConfig
 
 
 IGNORE_INDEX = -100
@@ -37,8 +37,8 @@ class ModelArguments:
     model_name_or_path: str = field(default="models")
     vocab_size: int = field(default=12)
     hidden_size: int = field(default=128)  # was 512
-    intermediate_size: int = field(default=256)  # was 1024
-    num_hidden_layers: int = field(default=4)  # was 4
+    intermediate_size: int = field(default=512)  # was 1024
+    num_hidden_layers: int = field(default=8)  # was 4
     num_attention_heads: int = field(default=2)  # was 4
     hidden_act: str = field(default="silu")
     max_position_embeddings: int = field(default=MAX_LENGTH)
@@ -63,7 +63,7 @@ class TrainingArguments(transformers.TrainingArguments):
     # lr_scheduler_type: str = field(default="linear")
     # Batch size and epochs
     per_device_train_batch_size: int = field(default=512)
-    num_train_epochs: float = field(default=4000.0)
+    num_train_epochs: float = field(default=3000.0)
     # Logging and saving
     logging_strategy: str = field(default="epoch")
     save_strategy: str = field(default="epoch")
@@ -75,7 +75,7 @@ def get_optimizer(model, args: TrainingArguments, lr: float = 2e-4):
         [p for p in model.parameters() if p.requires_grad], lr=lr
     )
     num_training_steps = (
-        math.ceil(NROWS // (args.per_device_train_batch_size * NGPU))
+        math.ceil(NROWS / (args.per_device_train_batch_size * NGPU))
         * args.num_train_epochs
     )
     scheduler = transformers.get_cosine_schedule_with_warmup(
@@ -238,7 +238,7 @@ def make_supervised_data_module(tokenizer: transformers.PreTrainedTokenizer) -> 
     )
 
 
-def train(is_prune):
+def train(train_mode):
     parser = transformers.HfArgumentParser((ModelArguments, TrainingArguments))
     model_args, training_args = parser.parse_args_into_dataclasses()
 
@@ -285,30 +285,45 @@ def train(is_prune):
 
     data_module = make_supervised_data_module(tokenizer=tokenizer)
 
-    if is_prune:
-        pruning_config = WeightPruningConfig(
-            pruning_type="magnitude",
-            start_step=0,
-            end_step=10000,
-            target_sparsity=0.2,
-            pruning_scope="local",
-        )
-        trainer = INCTrainer(
-            model=model,
-            pruning_config=pruning_config,
-            tokenizer=tokenizer,
-            args=training_args,
-            optimizers=get_optimizer(model, training_args),
-            **data_module,
-        )
-    else:
-        trainer = transformers.Trainer(
-            model=model,
-            tokenizer=tokenizer,
-            args=training_args,
-            optimizers=get_optimizer(model, training_args),
-            **data_module,
-        )
+    match train_mode:
+        case "pruning":
+            pruning_config = WeightPruningConfig(
+                pruning_type="magnitude",
+                start_step=0,
+                end_step=10000,
+                target_sparsity=0.2,
+                pruning_scope="local",
+            )
+            trainer = INCTrainer(
+                model=model,
+                pruning_config=pruning_config,
+                tokenizer=tokenizer,
+                args=training_args,
+                optimizers=get_optimizer(model, training_args),
+                **data_module,
+            )
+        case "distillation":
+            logger.info("Loading teacher model...")
+            teacher_model = transformers.AutoModelForCausalLM.from_pretrained(
+                "checkpoints/checkpoint-16984000"
+            )
+            distillation_config = DistillationConfig(teacher_model=teacher_model)
+            trainer = INCTrainer(
+                model=model,
+                tokenizer=tokenizer,
+                distillation_config=distillation_config,
+                args=training_args,
+                optimizers=get_optimizer(model, training_args),
+                **data_module,
+            )
+        case _:
+            trainer = transformers.Trainer(
+                model=model,
+                tokenizer=tokenizer,
+                args=training_args,
+                optimizers=get_optimizer(model, training_args),
+                **data_module,
+            )
     trainer.train()
     trainer.save_state()
     estimate_model_size(model)
@@ -332,4 +347,4 @@ def continue_train(checkpoint: str):
 
 
 if __name__ == "__main__":
-    train(is_prune=False)
+    train(train_mode="normal")
