@@ -36,18 +36,18 @@ PROMPT_DICT = {
 @dataclass
 class ModelArguments:
     model_name_or_path: str = field(default="models")
-    vocab_size: int = field(default=17)
+    vocab_size: int = field(default=19)
     hidden_size: int = field(default=128)  # was 512
     intermediate_size: int = field(default=256)  # was 1024
-    num_hidden_layers: int = field(default=4)  # was 4
+    num_hidden_layers: int = field(default=3)  # was 4
     num_attention_heads: int = field(default=2)  # was 4
     hidden_act: str = field(default="silu")
     max_position_embeddings: int = field(default=MAX_LENGTH)
     initializer_range: float = field(default=0.02)
     rms_norm_eps: float = field(default=1e-06)
     use_cache: bool = field(default=True)
-    # pad_token_id: int = field(default=19)
-    # eos_token_id: int = field(default=20)
+    pad_token_id: int = field(default=17)
+    eos_token_id: int = field(default=18)
     tie_word_embeddings: bool = field(default=False)
 
 
@@ -58,17 +58,13 @@ class TrainingArguments(transformers.TrainingArguments):
     output_dir: str = field(default="outputs")
     dataloader_num_workers: int = field(default=16)
     disable_tqdm: bool = field(default=True)
-    # # Optimization
-    # optim: str = field(default="adamw_torch")
-    # learning_rate: float = field(default=2e-4)
-    # lr_scheduler_type: str = field(default="linear")
     # Batch size and epochs
-    per_device_train_batch_size: int = field(default=256)
+    per_device_train_batch_size: int = field(default=512)
     num_train_epochs: float = field(default=4000.0)
     # Logging and saving
     logging_strategy: str = field(default="epoch")
     save_strategy: str = field(default="epoch")
-    save_total_limit: int = field(default=10)
+    save_total_limit: int = field(default=8)
 
 
 def get_optimizer(model, args: TrainingArguments, lr: float = 2e-4):
@@ -242,7 +238,7 @@ def make_supervised_data_module(tokenizer: transformers.PreTrainedTokenizer) -> 
 #     tokenizer.save(f'{save_dir}/tokenizer.json')
 
 
-def train(train_mode):
+def train(train_mode=None):
     parser = transformers.HfArgumentParser((ModelArguments, TrainingArguments))
     model_args, training_args = parser.parse_args_into_dataclasses()
     if train_mode == "distillation":
@@ -323,6 +319,7 @@ def train(train_mode):
                 **data_module,
             )
         case _:
+            logger.info("Loading general transformer trainer...")
             trainer = transformers.Trainer(
                 model=model,
                 tokenizer=tokenizer,
@@ -353,4 +350,5 @@ def continue_train(checkpoint: str):
 
 
 if __name__ == "__main__":
-    train(train_mode="distillation")
+    # train(train_mode="distillation")
+    train()

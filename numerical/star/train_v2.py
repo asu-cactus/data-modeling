@@ -33,7 +33,7 @@ is_shuffle_row = False
 @dataclass
 class ModelArguments:
     model_name_or_path: str = field(default="models")
-    vocab_size: int = field(default=12)
+    vocab_size: int = field(default=14)
     hidden_size: int = field(default=128)  # was 512
     intermediate_size: int = field(default=256)  # was 1024
     num_hidden_layers: int = field(default=4)  # was 4
@@ -43,8 +43,8 @@ class ModelArguments:
     initializer_range: float = field(default=0.02)
     rms_norm_eps: float = field(default=1e-06)
     use_cache: bool = field(default=True)
-    # pad_token_id: int = field(default=19)
-    # eos_token_id: int = field(default=20)
+    pad_token_id: int = field(default=12)
+    eos_token_id: int = field(default=13)
     tie_word_embeddings: bool = field(default=False)
 
 
@@ -252,9 +252,9 @@ def train(is_prune):
             initializer_range=model_args.initializer_range,
             rms_norm_eps=model_args.rms_norm_eps,
             use_cache=model_args.use_cache,
-            # pad_token_id=model_args.pad_token_id,
+            pad_token_id=model_args.pad_token_id,
             # bos_token_id=model_args.bos_token_id,
-            # eos_token_id=model_args.eos_token_id,
+            eos_token_id=model_args.eos_token_id,
             tie_word_embeddings=model_args.tie_word_embeddings,
         )
     )

@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import logging
 from random import sample
+from pathlib import Path
 
 logging.basicConfig(level=logging.INFO, format="%(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -51,6 +52,12 @@ class DataProcessor:
         self.data_to_list_of_dict()
 
     def load_data(self):
+        target_file = Path("data/star2000.txt")
+        if target_file.is_file():
+            with open(target_file, "r") as f:
+                lines = [line.strip() for line in f.readlines()]
+                return lines
+
         data = pd.read_csv(
             "data/star2000.csv.gz",
             header=None,
@@ -59,7 +66,7 @@ class DataProcessor:
             dtype=names,
         )
         lines = []
-        with open("data/star2000.txt", "w") as f:
+        with open(target_file, "w") as f:
             for idx, row in data.iterrows():
                 string = self._row_to_string(idx, row)
                 f.write(f"{string}\n")

@@ -17,7 +17,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "true"
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 
 OUTPUT_DIR = "outputs_v2"
-CHECKPOINT = "checkpoint-738804"
+CHECKPOINT = "checkpoint-1658063"
 device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
 # quantization = "bitsandbytes8bit"
 quantization = None
