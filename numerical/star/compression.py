@@ -219,7 +219,7 @@ def test_compression(select_five, is_shuffle=False):
     # Measure size of original data frame and compressed data frame
     size_in_mb = sys.getsizeof(df) / 1024**2
     print(f"Before compression size: {size_in_mb:.2f}MB")
-    zstd_compress(df, select_five)
+    # zstd_compress(df, select_five)
     # zfpy_compress(df, mode="fixed_accuracy")
 
     sz_compress(df, mode="REL", select_five=select_five)

@@ -17,7 +17,11 @@ import transformers
 import utils
 from torch.utils.data import Dataset
 from optimum.intel import INCTrainer
-from neural_compressor import WeightPruningConfig, DistillationConfig
+from neural_compressor import (
+    WeightPruningConfig,
+    DistillationConfig,
+    QuantizationAwareTrainingConfig,
+)
 
 IGNORE_INDEX = -100
 DEFAULT_PAD_TOKEN = "[PAD]"
@@ -31,6 +35,8 @@ PROMPT_DICT = {
     "prompt_input": "{intruction}{input}",
     "prompt_no_input": "{instruction}",
 }
+
+OUTPUT_DIR = "outputs_distill_quantize"
 
 
 @dataclass
@@ -55,12 +61,14 @@ class ModelArguments:
 class TrainingArguments(transformers.TrainingArguments):
     cache_dir: str = field(default="cache")
     model_max_length: int = field(default=MAX_LENGTH)
-    output_dir: str = field(default="outputs")
+    output_dir: str = field(default=OUTPUT_DIR)
     dataloader_num_workers: int = field(default=16)
     disable_tqdm: bool = field(default=True)
     # Batch size and epochs
     per_device_train_batch_size: int = field(default=512)
-    num_train_epochs: float = field(default=4000.0)
+    num_train_epochs: float = field(default=2000.0)
+    # Gradient accumulation
+    gradient_accumulation_steps: int = field(default=10)
     # Logging and saving
     logging_strategy: str = field(default="epoch")
     save_strategy: str = field(default="epoch")
@@ -72,8 +80,14 @@ def get_optimizer(model, args: TrainingArguments, lr: float = 2e-4):
         [p for p in model.parameters() if p.requires_grad], lr=lr
     )
     num_training_steps = (
-        math.ceil(NROWS // (args.per_device_train_batch_size * 2))
-        * NGPU
+        math.ceil(
+            NROWS
+            / (
+                args.per_device_train_batch_size
+                * NGPU
+                * args.gradient_accumulation_steps
+            )
+        )
         * args.num_train_epochs
     )
     scheduler = transformers.get_cosine_schedule_with_warmup(
@@ -306,14 +320,16 @@ def train(train_mode=None):
             )
         case "distillation":
             logger.info("Loading teacher model...")
+            quantization_config = QuantizationAwareTrainingConfig()
             teacher_model = transformers.AutoModelForCausalLM.from_pretrained(
-                "checkpoints/checkpoint-16984000"
+                "./checkpoint-1953160"
             )
             distillation_config = DistillationConfig(teacher_model=teacher_model)
             trainer = INCTrainer(
                 model=model,
                 tokenizer=tokenizer,
                 distillation_config=distillation_config,
+                quantization_config=quantization_config,
                 args=training_args,
                 optimizers=get_optimizer(model, training_args),
                 **data_module,
@@ -333,8 +349,12 @@ def train(train_mode=None):
 
 def continue_train(checkpoint: str):
     # TODO: Support dpsgd
-    tokenizer = transformers.AutoTokenizer.from_pretrained(f"outputs/{checkpoint}/")
-    model = transformers.AutoModelForCausalLM.from_pretrained(f"outputs/{checkpoint}/")
+    tokenizer = transformers.AutoTokenizer.from_pretrained(
+        f"{OUTPUT_DIR}/{checkpoint}/"
+    )
+    model = transformers.AutoModelForCausalLM.from_pretrained(
+        f"{OUTPUT_DIR}/{checkpoint}/"
+    )
     data_module = make_supervised_data_module(tokenizer=tokenizer)
     parser = transformers.HfArgumentParser((ModelArguments, TrainingArguments))
     _, training_args = parser.parse_args_into_dataclasses()
@@ -350,5 +370,5 @@ def continue_train(checkpoint: str):
 
 
 if __name__ == "__main__":
-    # train(train_mode="distillation")
-    train()
+    train(train_mode="distillation")
+    # train()

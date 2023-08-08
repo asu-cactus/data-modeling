@@ -19,11 +19,11 @@ logger = logging.getLogger(__name__)
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 
-OUPUT_DIR = "outputs"
-CHECKPOINT = "checkpoint-866184"
+OUPUT_DIR = "outputs2"
+CHECKPOINT = "checkpoint-1802427"
 NROWS = 2173762
-device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
-# quantization = "inc"
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+# quantization = "bitsandbytes8bit"
 quantization = None
 
 
@@ -119,9 +119,9 @@ def get_model_and_tokenizer():
         case "bitsandbytes4bit":
             quantization_config = BitsAndBytesConfig(
                 load_in_4bit=True,
-                bnb_4bit_compute_dtype=torch.bfloat16,
-                bnb_4bit_use_double_quant=True,
-                bnb_4bit_quant_type="nf4",
+                # bnb_4bit_compute_dtype=torch.bfloat16,
+                # bnb_4bit_use_double_quant=True,
+                # bnb_4bit_quant_type="nf4",
             )
             model = AutoModelForCausalLM.from_pretrained(
                 f"{OUPUT_DIR}/{CHECKPOINT}/", quantization_config=quantization_config
@@ -177,15 +177,12 @@ def predict(batch_size=256):
     model, tokenizer = get_model_and_tokenizer()
     if quantization is None:
         model = model.to(device)
-    max_new_tokens = MAX_LENGTH + 10
     predictions = []
     with open(f"data/{CHECKPOINT}.txt", "w") as f:
         for start_idx in range(0, NROWS, batch_size):
             batch = prompts[start_idx : start_idx + batch_size]
             inputs = tokenizer(batch, return_tensors="pt").input_ids.to(device)
-            outputs = model.generate(
-                inputs, max_new_tokens=max_new_tokens, do_sample=False
-            )
+            outputs = model.generate(inputs, max_new_tokens=MAX_LENGTH, do_sample=False)
             outputs = tokenizer.batch_decode(outputs, skip_special_tokens=False)
             outputs = [
                 text.replace(" ", "")
