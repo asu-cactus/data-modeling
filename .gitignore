@@ -1,7 +1,6 @@
 __pycache__/
 data/
-outputs/
-outputs_v2/
+outputs*/
 
 # output files
 *.out
