@@ -19,8 +19,8 @@ logger = logging.getLogger(__name__)
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 
-OUPUT_DIR = "outputs2"
-CHECKPOINT = "checkpoint-1802427"
+OUPUT_DIR = "outputs"
+CHECKPOINT = "checkpoint-212000"
 NROWS = 2173762
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 # quantization = "bitsandbytes8bit"
@@ -155,7 +155,7 @@ def predict_test(batch_size=1000):
     model, tokenizer = get_model_and_tokenizer()
     if quantization is None:
         model = model.to(device)
-    max_new_tokens = MAX_LENGTH + 10
+    max_new_tokens = MAX_LENGTH
     start_time = time.time()
     for start_idx in range(0, test_rows, batch_size):
         batch = prompts[start_idx : start_idx + batch_size]

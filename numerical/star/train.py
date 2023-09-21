@@ -8,7 +8,7 @@ import os
 logging.basicConfig(level=logging.INFO, format="%(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-os.environ["NUMEXPR_MAX_THREADS"] = "32"
+os.environ["NUMEXPR_MAX_THREADS"] = "48"
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 
@@ -36,7 +36,7 @@ PROMPT_DICT = {
     "prompt_no_input": "{instruction}",
 }
 
-OUTPUT_DIR = "outputs_distill_quantize"
+OUTPUT_DIR = "outputs"
 
 
 @dataclass
@@ -45,7 +45,7 @@ class ModelArguments:
     vocab_size: int = field(default=19)
     hidden_size: int = field(default=128)  # was 512
     intermediate_size: int = field(default=256)  # was 1024
-    num_hidden_layers: int = field(default=3)  # was 4
+    num_hidden_layers: int = field(default=4)  # was 4
     num_attention_heads: int = field(default=2)  # was 4
     hidden_act: str = field(default="silu")
     max_position_embeddings: int = field(default=MAX_LENGTH)
@@ -66,7 +66,7 @@ class TrainingArguments(transformers.TrainingArguments):
     disable_tqdm: bool = field(default=True)
     # Batch size and epochs
     per_device_train_batch_size: int = field(default=512)
-    num_train_epochs: float = field(default=2000.0)
+    num_train_epochs: float = field(default=1000.0)
     # Gradient accumulation
     gradient_accumulation_steps: int = field(default=10)
     # Logging and saving
@@ -319,20 +319,11 @@ def train(train_mode=None):
                 **data_module,
             )
         case "distillation":
-            logger.info("Loading teacher model...")
-            quantization_config = QuantizationAwareTrainingConfig()
-            teacher_model = transformers.AutoModelForCausalLM.from_pretrained(
-                "./checkpoint-1953160"
-            )
-            distillation_config = DistillationConfig(teacher_model=teacher_model)
-            trainer = INCTrainer(
+            trainer = get_trainer_for_distillation(
                 model=model,
                 tokenizer=tokenizer,
-                distillation_config=distillation_config,
-                quantization_config=quantization_config,
-                args=training_args,
-                optimizers=get_optimizer(model, training_args),
-                **data_module,
+                training_args=training_args,
+                data_module=data_module,
             )
         case _:
             logger.info("Loading general transformer trainer...")
@@ -347,8 +338,26 @@ def train(train_mode=None):
     trainer.save_state()
 
 
-def continue_train(checkpoint: str):
-    # TODO: Support dpsgd
+def get_trainer_for_distillation(model, tokenizer, training_args, data_module):
+    logger.info("Loading teacher model...")
+    quantization_config = QuantizationAwareTrainingConfig()
+    teacher_model = transformers.AutoModelForCausalLM.from_pretrained(
+        "./checkpoint-2857558"
+    )
+    distillation_config = DistillationConfig(teacher_model=teacher_model)
+    trainer = INCTrainer(
+        model=model,
+        tokenizer=tokenizer,
+        distillation_config=distillation_config,
+        quantization_config=quantization_config,
+        args=training_args,
+        optimizers=get_optimizer(model, training_args),
+        **data_module,
+    )
+    return trainer
+
+
+def continue_train(checkpoint: str, train_mode=None):
     tokenizer = transformers.AutoTokenizer.from_pretrained(
         f"{OUTPUT_DIR}/{checkpoint}/"
     )
@@ -358,17 +367,28 @@ def continue_train(checkpoint: str):
     data_module = make_supervised_data_module(tokenizer=tokenizer)
     parser = transformers.HfArgumentParser((ModelArguments, TrainingArguments))
     _, training_args = parser.parse_args_into_dataclasses()
-    trainer = transformers.Trainer(
-        model=model,
-        tokenizer=tokenizer,
-        args=training_args,
-        optimizers=get_optimizer(model, training_args),
-        **data_module,
-    )
+
+    match train_mode:
+        case "distillation":
+            trainer = get_trainer_for_distillation(
+                model=model,
+                tokenizer=tokenizer,
+                training_args=training_args,
+                data_module=data_module,
+            )
+        case _:
+            trainer = transformers.Trainer(
+                model=model,
+                tokenizer=tokenizer,
+                args=training_args,
+                optimizers=get_optimizer(model, training_args),
+                **data_module,
+            )
     trainer.train()
     trainer.save_state()
 
 
 if __name__ == "__main__":
-    train(train_mode="distillation")
-    # train()
+    # train(train_mode="distillation")
+    # continue_train(checkpoint="checkpoint-424", train_mode="distillation")
+    continue_train(checkpoint="checkpoint-2866050")
