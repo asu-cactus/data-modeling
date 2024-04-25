@@ -1,3 +1,9 @@
+import os
+
+os.environ["TOKENIZERS_PARALLELISM"] = "true"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+
+
 import numpy as np
 import torch
 from torch.nn.utils.rnn import pad_sequence
@@ -14,9 +20,6 @@ import argparse
 import warnings
 
 warnings.simplefilter("ignore")
-import os
-
-os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
 
 def padded_collate(batch, padding_idx=0):
@@ -173,7 +176,7 @@ def main():
         "-b",
         "--batch_size",
         type=int,
-        default=64,
+        default=32,
         metavar="B",
         help="input batch size for test",
     )
@@ -181,14 +184,14 @@ def main():
         "-n",
         "--epochs",
         type=int,
-        default=10,
+        default=3,
         metavar="N",
         help="number of epochs to train",
     )
     parser.add_argument(
         "--lr",
         type=float,
-        default=5e-5,
+        default=1e-3,
         metavar="LR",
         help="learning rate",
     )
@@ -218,7 +221,7 @@ def main():
     parser.add_argument(
         "--delta",
         type=float,
-        default=1e-5,
+        default=4e-5,
         metavar="D",
         help="Target delta (default: 1e-5)",
     )
